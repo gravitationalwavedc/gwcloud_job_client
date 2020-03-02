@@ -11,8 +11,9 @@ from threading import Thread
 import websockets
 
 from scheduler.status import JobStatus
+from utils.scheduler import Scheduler
 from .db import get_job_by_ui_id, update_job, delete_job, get_all_jobs
-from .file_controller import create_file_connection
+from .handler import handle_message
 from .messaging.message import Message
 
 
@@ -24,6 +25,7 @@ class JobController:
         self.sock = None
         self.queue = asyncio.Queue()
         self.scheduler_klass = self.get_scheduler_instance()
+        self.scheduler = None
 
     def get_scheduler_instance(self):
         """
@@ -101,20 +103,22 @@ class JobController:
 
             await sleep(60)
 
-    async def handle_message(self, message, identifier=None):
+    async def handle_message(self, message):
         """
         Handles an incoming websocket message
 
-        :param identifier: A transaction identifier for an assured message
         :param message: The message to handle
         :return: Nothing
         """
         # Convert the raw message to a Message object
         msg = Message(data=message)
 
-        logging.info(msg.pop_uint())
-        logging.info(msg.pop_string())
-        logging.info("Done")
+        logging.error(msg.id)
+        logging.error(msg.source)
+        logging.error("Done")
+
+        await handle_message(self, msg)
+
         return
 
         # Get the message id
@@ -319,22 +323,6 @@ class JobController:
         else:
             logging.info("Got unknown message id {}".format(msg_id))
 
-    async def send_assured_message(self, message, identifier):
-        """
-        Sends and assured encapsulated message over the websocket back to the server
-
-        :param message: The message to send
-        :param identifier: The identifier for this transaction
-        :return: Nothing
-        """
-        # Create the encapsulated message
-        encapsulated_msg = Message(Message.TRANSMIT_ASSURED_RESPONSE_WEBSOCKET_MESSAGE)
-        encapsulated_msg.push_string(identifier)
-        encapsulated_msg.push_bytes(message.to_bytes())
-
-        # Send the message
-        await self.queue.put(encapsulated_msg.to_bytes())
-
     async def send_handler(self):
         """
         Handles sending messages from the queue to the server
@@ -369,6 +357,8 @@ class JobController:
 
         self.sock = await websockets.connect(
             '{}/ws/?token={}'.format(self.settings.HPC_WEBSOCKET_SERVER, self.argv[1]))
+
+        self.scheduler = Scheduler(self.sock)
 
         # Create the consumer and producer tasks
         consumer_task = asyncio.ensure_future(self.recv_handler())

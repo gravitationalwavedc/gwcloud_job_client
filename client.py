@@ -5,7 +5,7 @@ import signal
 import sys
 import traceback
 
-from core.job_controller import JobController
+from core.connection import JobController
 from settings import settings
 from utils.daemon import Daemon
 
