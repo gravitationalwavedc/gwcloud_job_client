@@ -90,7 +90,7 @@ class Message:
         # ulong: File size if file
     GET_FILE_TREE = 2003
 
-    def __init__(self, msg_id=None, data=None, source=None):
+    def __init__(self, msg_id=None, data=None, source=None, priority=None):
         """
         Message constructor - creates a new message with the provided message id, or creates an existing message from
         the provided data
@@ -117,6 +117,10 @@ class Message:
 
             # Reset the offset to the start of the message
             self.offset = 0
+
+            # Set the source and priority
+            self.source = source
+            self.priority = priority
 
             # Push the source
             self.push_string(source)

@@ -11,11 +11,11 @@ async def handle_message(con, msg):
     if msg.id == SERVER_READY:
         con.scheduler.server_ready()
 
-        result = Message(2000, source="system")
+        result = Message(2000, source="system", priority=Scheduler.Priority.Highest)
         result.push_string("Unable to submit job. Please check the logs as to why.")
         # Send the result
 
-        con.scheduler.queue_message("system", result, Scheduler.Priority.Highest)
+        con.scheduler.queue_message(result)
 
     else:
         logging.error("Got unknown message ID from the server: " + str(msg.id) + " source: " + msg.source)

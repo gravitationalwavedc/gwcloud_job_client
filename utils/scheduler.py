@@ -39,12 +39,12 @@ class Scheduler:
         asyncio.set_event_loop(asyncio.new_event_loop())
         asyncio.get_event_loop().run_until_complete(self.run())
 
-    def queue_message(self, source, message, priority):
+    def queue_message(self, message):
         with self.mutex:
-            if source not in self.queue[priority]:
-                self.queue[priority][source] = queue.SimpleQueue()
+            if message.source not in self.queue[message.priority]:
+                self.queue[message.priority][message.source] = queue.SimpleQueue()
 
-            self.queue[priority][source].put(message.to_bytes())
+            self.queue[message.priority][message.source].put(message.to_bytes())
 
         self.dataReady.set()
 
