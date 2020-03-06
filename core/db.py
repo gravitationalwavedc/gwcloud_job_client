@@ -133,3 +133,144 @@ async def delete_job(job):
 
         # Save the database
         _write_db(db)
+
+
+async def get_all_queued_jobs(bundle_hash):
+    """
+    Gets all job records for jobs in the database
+
+    :param bundle_hash: The bundle to get all queued jobs for
+    :return: An array of all current jobs in the database
+    """
+    # Acquire the lock
+    async with lock:
+        # Read the database
+        db = _read_db()
+
+        # Make sure the database has a jobs entry already
+        if 'queued_jobs' not in db:
+            # Create a new job array
+            db['queued_jobs'] = {bundle_hash: []}
+
+        # Return the jobs
+        return db['queued_jobs'][bundle_hash]
+
+
+async def queue_job(job_id, bundle_hash, params):
+    """
+    Adds a job to the queue for a specific bundle
+
+    :param params: The job parameters
+    :param bundle_hash: The bundle we're queuing this job for
+    :param job_id: The server ID for this job
+    :return: None
+    """
+    # Acquire the lock
+    async with lock:
+        # Read the database
+        db = _read_db()
+
+        # Make sure the database has a jobs entry already
+        if 'queued_jobs' not in db:
+            # Create a new job array
+            db['queued_jobs'] = {}
+
+        if bundle_hash not in db['queued_jobs']:
+            db['queued_jobs'][bundle_hash] = []
+
+        # If no record was found, insert the job
+        db['queued_jobs'][bundle_hash].append({
+            'id': job_id,
+            'params': params
+        })
+
+        # Save the database
+        _write_db(db)
+
+
+async def pop_queued_job(bundle_hash):
+    """
+    Gets the first queued job in the specified bundle queue
+
+    :param bundle_hash: The hash of the bundle to pop a job for
+    :return: An object with id and params if a job existed, or None if there are no more jobs in the queue
+    """
+    # Acquire the lock
+    async with lock:
+        # Read the database
+        db = _read_db()
+
+        # Make sure the database has a jobs entry already
+        if 'queued_jobs' not in db:
+            return
+
+        if bundle_hash not in db['queued_jobs']:
+            return
+
+        # Get the jobs from the database for the specified bundle
+        result = None
+        jobs = db['queued_jobs'][bundle_hash]
+        # Are there any jobs left in the queue?
+        if not len(jobs):
+            # No, delete the bundle queue from the database
+            del db['queued_jobs'][bundle_hash]
+        else:
+            # Get the first job in the array
+            result = jobs[0]
+            # Remove the job from the queue
+            db['queued_jobs'][bundle_hash] = jobs[1:]
+
+        # Save the database
+        _write_db(db)
+
+        # Return the result
+        return result
+
+
+async def is_bundle_queued(bundle_hash):
+    """
+    Checks to see if we're currently waiting for a bundle to be delivered and unpacked by the server
+
+    :param bundle_hash: The hash of the bundle to check
+    :return: True or False if the bundle is queued
+    """
+    # Acquire the lock
+    async with lock:
+        # Read the database
+        db = _read_db()
+
+        # Check if the bundle exists in the database
+        if 'queued_bundles' in db:
+            for bundle in db['queued_bundles']:
+                if bundle == bundle_hash:
+                    # Found the bundle, so it's still queued
+                    return True
+
+        # No job matching the criteria was in the database
+        return False
+
+
+async def queue_bundle(bundle_hash):
+    """
+    Markes a bundle as queued in the database
+
+    :param bundle_hash: The bundle hash to mark queued
+    :return: None
+    """
+    # Acquire the lock
+    async with lock:
+        # Read the database
+        db = _read_db()
+
+        # Make sure the database has a queued_bundles entry already
+        if 'queued_bundles' not in db:
+            # Create a new job array
+            db['queued_bundles'] = []
+
+        # Check if the specified bundle is already queued
+        if bundle_hash not in db['queued_bundles']:
+            # Nope, add the bundle to the database
+            db['queued_bundles'].append(bundle_hash)
+
+        # Save the database
+        _write_db(db)

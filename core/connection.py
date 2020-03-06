@@ -19,25 +19,13 @@ from .messaging.message import Message
 
 class JobController:
 
-    def __init__(self, argv, settings):
+    def __init__(self, argv):
         self.argv = argv
-        self.settings = settings
         self.sock = None
         self.queue = asyncio.Queue()
-        self.scheduler_klass = self.get_scheduler_instance()
         self.scheduler = None
 
-    def get_scheduler_instance(self):
-        """
-        Returns the class specified by the HPC_SCHEDULER_CLASS setting
 
-        :return: The Class identified by HPC_SCHEDULER_CLASS
-        """
-        # Split the class path by full stops
-        class_bits = self.settings.HPC_SCHEDULER_CLASS.split('.')
-
-        # Import and return the class
-        return getattr(importlib.import_module('.'.join(class_bits[:-1])), class_bits[-1])
 
     async def check_job_status(self, job, force_notification=False):
         """
@@ -149,45 +137,9 @@ class JobController:
                 logging.info("Job with ui id {} has already been submitted, checking status...".format(ui_id))
                 # If so, check the state of the job and notify the server of it's current state
                 await self.check_job_status(job, True)
-            else:
-                # If not, submit the job and record that we have submitted the job
-                logging.info("Submitting new job with ui id {}".format(ui_id))
 
-                # Instantiate the scheduler
-                scheduler = self.scheduler_klass(self.settings, ui_id, None)
 
-                # Create a new job object and save it
-                job = {'ui_id': ui_id, 'job_id': None, 'status': JobStatus.SUBMITTING}
-                await update_job(job)
 
-                # Submit the job
-                job_id = scheduler._submit(job_params)
-
-                # Check if there was an issue with the job
-                if not job_id:
-                    logging.info("Job with ui id {} could not be submitted"
-                                 .format(job['ui_id'], job['job_id']))
-                    await delete_job(job)
-                    # Notify the server that the job is failed
-                    result = Message(Message.UPDATE_JOB)
-                    result.push_uint(ui_id)
-                    result.push_uint(JobStatus.ERROR)
-                    result.push_string("Unable to submit job. Please check the logs as to why.")
-                    # Send the result
-                    await self.sock.send(result.to_bytes())
-                else:
-                    # Update and save the job
-                    job['job_id'] = job_id
-                    await update_job(job)
-
-                    logging.info("Successfully submitted job with ui id {}, got scheduler id {}"
-                                 .format(job['ui_id'], job['job_id']))
-
-                    # Notify the server that the job is successfully submitted
-                    result = Message(Message.SUBMIT_JOB)
-                    result.push_uint(ui_id)
-                    # Send the result
-                    await self.sock.send(result.to_bytes())
 
         elif msg_id == Message.TRANSMIT_ASSURED_RESPONSE_WEBSOCKET_MESSAGE:
             # Read the identifier

@@ -9,8 +9,8 @@ HPC_WEBSOCKET_SERVER = 'ws://127.0.0.1:8001'
 # The scheduler class
 HPC_SCHEDULER_CLASS = 'scheduler.local.Local'
 
-# The location of job working directory
-HPC_JOB_WORKING_DIRECTORY = '/tmp/jobs/'
+# The name of this cluster
+CLUSTER_NAME = "ozstar"
 
 try:
     from .local import *

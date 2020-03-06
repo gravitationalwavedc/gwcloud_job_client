@@ -42,7 +42,7 @@ class Scheduler:
     def queue_message(self, message):
         with self.mutex:
             if message.source not in self.queue[message.priority]:
-                self.queue[message.priority][message.source] = queue.SimpleQueue()
+                self.queue[message.priority][message.source] = queue.Queue()
 
             self.queue[message.priority][message.source].put(message.to_bytes())
 

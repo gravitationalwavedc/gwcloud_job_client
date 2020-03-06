@@ -33,9 +33,6 @@ class Local(Scheduler):
         # Call the super constructor
         super().__init__(settings, ui_id, job_id)
 
-        # Set the local template
-        self.local_template = 'settings/local.sh.template'
-
         # Create a pickle to use as a database
         if not os.path.exists(Local.DATABASE_FILE):
             # Create the database template
@@ -65,97 +62,48 @@ class Local(Scheduler):
             # Pickle and write the database
             pickle.dump(db, f)
 
-    def generate_template_dict(self):
-        """
-        Generates a dictionary to pass to the string formatter for the local template.
-
-        Should be overridden to add custom entries to the dictionary
-
-        :return: The dictionary with the key/value pairs to add to render the local template
-        """
-
-        return {
-            'ui_job_id': self.ui_id
-        }
-
-    def get_local_script_file_path(self):
-        """
-        Returns the full path to the local run script
-
-        :return: The full path to the local run script
-        """
-        return os.path.join(self.get_working_directory(), str(self.ui_id) + '.sh')
-
-    def get_local_execution_script_file_path(self):
+    def get_local_execution_script_file_path(self, working_directory):
         """
         Returns the full path to the execution script
 
         :return: The full path to the execution script
         """
-        return os.path.join(self.get_working_directory(), 'run_local.sh')
+        return os.path.join(working_directory, 'run_local.sh')
     
-    def get_pid_path(self):
+    def get_pid_path(self, working_directory):
         """
         Returns the full path to the process id file
 
         :return: The full path to the process id file
         """
-        return os.path.join(self.get_working_directory(), 'pid')
+        return os.path.join(working_directory, 'pid')
 
-    def _submit(self, job_parameters):
+    def submit(self, script):
         """
         Used to submit a job on the cluster
 
-        Entry to the submit function. This function is called by the job controller. Override this with any before/after
-        job submission logic specific to the scheduler. Call submit from this function
-
-        :param job_parameters: The job parameters for this job
+        :param script: The path to the job submission script
         :return: An integer identifier for the submitted job
         """
         # Get the output path for this job
-        working_directory = self.get_working_directory()
-
-        # Make sure that the directory is deleted if it already exists
-        try:
-            shutil.rmtree(working_directory)
-        except:
-            pass
-
-        # Make sure the working directory is recreated
-        os.makedirs(working_directory, 0o770, True)
-
-        # Generate the actual job script to run
-        self.submit(job_parameters)
+        working_directory = os.path.dirname(script)
 
         # Prepare the local execution script
         script = SUBMISSION_TEMPLATE % {
-            'working_directory': self.get_working_directory(),
-            'script_name': self.get_local_script_file_path()
+            'working_directory': working_directory,
+            'script_name': script
         }
 
         # Write the local execution script
-        with open(self.get_local_execution_script_file_path(), 'w') as f:
+        with open(self.get_local_execution_script_file_path(working_directory), 'w') as f:
             f.write(script)
 
-        # Read the local template
-        template = open(self.local_template).read()
-
-        # Render the template
-        template = template % self.generate_template_dict()
-
-        # Get the path to the local script
-        local_script = self.get_local_script_file_path()
-
-        # Save the local script
-        with open(local_script, 'w') as f:
-            f.write(template)
-
         # Make both generated files executable
-        os.chmod(self.get_local_execution_script_file_path(), stat.S_IRUSR | stat.S_IXUSR)
-        os.chmod(local_script, stat.S_IRUSR | stat.S_IXUSR)
+        os.chmod(self.get_local_execution_script_file_path(working_directory), stat.S_IRUSR | stat.S_IXUSR)
+        os.chmod(script, stat.S_IRUSR | stat.S_IXUSR)
 
         # Execute the job in the background
-        os.system("set -m; exec nohup {} & echo $! > {}".format(self.get_local_execution_script_file_path(), self.get_pid_path()))
+        os.system("set -m; exec nohup {} & echo $! > {}".format(self.get_local_execution_script_file_path(working_directory), self.get_pid_path(working_directory)))
 
         # Generate a new id for this job
         # Read the database
@@ -169,15 +117,6 @@ class Local(Scheduler):
 
         # Return the id
         return local_id
-
-    def submit(self, job_parameters):
-        """
-        Used to submit a job on the cluster
-
-        :param job_parameters: The job parameters for this job
-        :return: Nothing, the integer identifier for the job is returned from _submit for Local
-        """
-        pass
 
     def check_pid(self, pid):
         """
