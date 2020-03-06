@@ -82,9 +82,7 @@ def get_bundle_loader_source(bundle_function, shm_name):
 
     import bundle
     result = bundle.{bundle_function}(data['details'], data['job_data'])
-
-    print(result)
-        """
+    """
 
     return source
 
