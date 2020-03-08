@@ -3,27 +3,16 @@ import importlib
 import inspect
 import json
 import logging
-import struct
+import os
+import subprocess
 
 import utils.shared_memory
-
-from core.db import is_bundle_queued, queue_bundle, queue_job, update_job
+from core.db import is_bundle_queued, queue_bundle, queue_job, update_job, delete_job
 from core.messaging.message import Message
+from core.messaging.message_ids import *
 from scheduler.status import JobStatus
 from settings import settings
-from utils.scheduler import Scheduler
-import subprocess
-import os
-
-# Send by the server when it has finished setting up the connection and is ready for messages
-SERVER_READY = 1000
-
-# Submits a new job
-SUBMIT_JOB = 2000
-
-# Request a missing bundle from the server
-REQUEST_BUNDLE = 3000
-
+from utils.packet_scheduler import PacketScheduler
 
 # Lock for synchronising bundle fetching
 lock = asyncio.Lock()
@@ -69,19 +58,21 @@ def get_bundle_loader_source(bundle_function, shm_name):
 
     # Append the bundle loading code
     source += f"""
-    import sys
-    import struct
-    import json
+import sys
+import struct
+import json
 
-    shm = SharedMemory(name="{shm_name}")
-    data = shm.buf.tobytes()
+shm = SharedMemory(name="{shm_name}")
+data = shm.buf.tobytes()
 
-    data = data.decode("utf-8")
+data = data.decode("utf-8")
 
-    data = json.loads(data)
+data = json.loads(data)
 
-    import bundle
-    result = bundle.{bundle_function}(data['details'], data['job_data'])
+import bundle
+result = bundle.{bundle_function}(data['details'], data['job_data'])
+
+print(result)
     """
 
     return source
@@ -135,13 +126,14 @@ def run_bundle(bundle_function, bundle_path, bundle_hash, details, job_data):
     err = err.decode('utf-8')
 
     # Log the command and output
-    logging.info("Running command " + " ".join(args))
+    logging.info("Running bundle command submit for " + bundle_hash)
     logging.info("Gave output:")
     logging.info("stdout: " + out)
     logging.info("stderr: " + err)
 
     # Get the last line of output
-    result = out.splitlines()[-1]
+    lines = out.splitlines()
+    result = out.splitlines()[-1] if len(lines) else None
 
     # Return the result and exit success
     return result, p.returncode == 0
@@ -163,7 +155,7 @@ async def submit_job(con, msg):
                 logging.info(f"Requesting bundle {bundle_hash} from the server for job {job_id}")
 
                 # Request the bundle from the server
-                response = Message(REQUEST_BUNDLE, source="system", priority=Scheduler.Priority.Highest)
+                response = Message(REQUEST_BUNDLE, source="system", priority=PacketScheduler.Priority.Highest)
                 response.push_uint(job_id)
                 response.push_string(bundle_hash)
                 con.scheduler.queue_message(response)
@@ -182,60 +174,69 @@ async def submit_job(con, msg):
     # Submit the job and record that we have submitted the job
     logging.info(f"Submitting new job with ui id {job_id}")
 
+    # Create a dict to store the data for this job
+    details = get_default_details()
+    details['job_id'] = job_id
+
+    # Get the working directory
+    working_directory, success = run_bundle("working_directory", bundle_path, bundle_hash, details, params)
+
+    # Check for success
+    if not success:
+        raise Exception("Failed to run the working_directory function from bundle {}")
+
     # Instantiate the scheduler
-    scheduler = get_scheduler_instance()(settings, job_id, None)
+    scheduler = get_scheduler_instance()(job_id, None, working_directory)
 
     # Create a new job object and save it
     job = {'job_id': job_id, 'slurm_id': None, 'status': JobStatus.SUBMITTING}
     await update_job(job)
 
-    # Create a dict to store the data for this job
-    details = get_default_details()
-    details['job_id'] = job_id
-
     # Run the bundle.py submit
-    result, success = run_bundle("submit", bundle_path, bundle_hash, details, params)
+    script_path, success = run_bundle("submit", bundle_path, bundle_hash, details, params)
 
     # Check for success
     if not success:
         raise Exception("Failed to run the submit function from bundle {}")
 
-    # result contains the path to the generated submission script
+    # script_path contains the path to the generated submission script
 
     # Submit the job
-    job_id = scheduler._submit(job_params)
+    scheduler_id = scheduler.submit(script_path)
 
     # Check if there was an issue with the job
-    if not job_id:
+    if not scheduler_id:
         logging.info("Job with ui id {} could not be submitted"
-                     .format(job['ui_id'], job['job_id']))
+                     .format(job['job_id']))
+
         await delete_job(job)
         # Notify the server that the job is failed
-        result = Message(Message.UPDATE_JOB)
-        result.push_uint(ui_id)
+        result = Message(UPDATE_JOB, source=str(job_id), priority=PacketScheduler.Priority.Medium)
+        result.push_uint(job_id)
         result.push_uint(JobStatus.ERROR)
         result.push_string("Unable to submit job. Please check the logs as to why.")
         # Send the result
-        await self.sock.send(result.to_bytes())
+        con.connection.queue_message(result)
     else:
         # Update and save the job
-        job['job_id'] = job_id
+        job['scheduler_id'] = scheduler_id
         await update_job(job)
 
         logging.info("Successfully submitted job with ui id {}, got scheduler id {}"
-                     .format(job['ui_id'], job['job_id']))
+                     .format(job['job_id'], job['scheduler_id']))
 
         # Notify the server that the job is successfully submitted
-        result = Message(Message.SUBMIT_JOB)
-        result.push_uint(ui_id)
+        result = Message(SUBMIT_JOB, source=str(job_id), priority=PacketScheduler.Priority.Medium)
+        result.push_uint(job_id)
         # Send the result
-        await self.sock.send(result.to_bytes())
+        con.scheduler.queue_message(result)
+
 
 async def handle_message(con, msg):
     if msg.id == SERVER_READY:
         con.scheduler.server_ready()
 
-        result = Message(2001, source="system", priority=Scheduler.Priority.Highest)
+        result = Message(2001, source="system", priority=PacketScheduler.Priority.Highest)
         result.push_string("Unable to submit job. Please check the logs as to why.")
         # Send the result
 

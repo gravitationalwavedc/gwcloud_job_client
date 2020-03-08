@@ -23,15 +23,16 @@ class Local(Scheduler):
     # Set the name of the local database file
     DATABASE_FILE = 'local.pickle'
 
-    def __init__(self, settings, ui_id, job_id):
+    def __init__(self, job_id, scheduler_id, working_directory):
         """
         Initialises the job scheduler
 
-        :param ui_id: The UI ID of the job
-        :param job_id: The scheduler job id
+        :param working_directory: The working directory for this job
+        :param job_id: The UI ID of the job
+        :param scheduler_id: The scheduler job id
         """
         # Call the super constructor
-        super().__init__(settings, ui_id, job_id)
+        super().__init__(job_id, scheduler_id, working_directory)
 
         # Create a pickle to use as a database
         if not os.path.exists(Local.DATABASE_FILE):
@@ -62,48 +63,47 @@ class Local(Scheduler):
             # Pickle and write the database
             pickle.dump(db, f)
 
-    def get_local_execution_script_file_path(self, working_directory):
+    def get_local_execution_script_file_path(self):
         """
         Returns the full path to the execution script
 
         :return: The full path to the execution script
         """
-        return os.path.join(working_directory, 'run_local.sh')
-    
-    def get_pid_path(self, working_directory):
+        return os.path.join(self.working_directory, 'run_local.sh')
+
+    def get_pid_path(self):
         """
         Returns the full path to the process id file
 
         :return: The full path to the process id file
         """
-        return os.path.join(working_directory, 'pid')
+        return os.path.join(self.working_directory, 'pid')
 
     def submit(self, script):
         """
         Used to submit a job on the cluster
 
-        :param script: The path to the job submission script
+        :param script: The submission script for this job
         :return: An integer identifier for the submitted job
         """
-        # Get the output path for this job
-        working_directory = os.path.dirname(script)
 
         # Prepare the local execution script
-        script = SUBMISSION_TEMPLATE % {
-            'working_directory': working_directory,
+        exec_script = SUBMISSION_TEMPLATE % {
+            'working_directory': self.working_directory,
             'script_name': script
         }
 
         # Write the local execution script
-        with open(self.get_local_execution_script_file_path(working_directory), 'w') as f:
-            f.write(script)
+        with open(self.get_local_execution_script_file_path(), 'w') as f:
+            f.write(exec_script)
 
         # Make both generated files executable
-        os.chmod(self.get_local_execution_script_file_path(working_directory), stat.S_IRUSR | stat.S_IXUSR)
+        os.chmod(self.get_local_execution_script_file_path(), stat.S_IRUSR | stat.S_IXUSR)
         os.chmod(script, stat.S_IRUSR | stat.S_IXUSR)
 
         # Execute the job in the background
-        os.system("set -m; exec nohup {} & echo $! > {}".format(self.get_local_execution_script_file_path(working_directory), self.get_pid_path(working_directory)))
+        os.system("set -m; exec nohup {} & echo $! > {}".
+                  format(self.get_local_execution_script_file_path(), self.get_pid_path()))
 
         # Generate a new id for this job
         # Read the database
@@ -148,7 +148,7 @@ class Local(Scheduler):
         :return: A tuple with JobStatus, additional info as a string
         """
         # Get the path to the exit code file
-        exit_code_path = os.path.join(self.get_working_directory(), 'exit_code')
+        exit_code_path = os.path.join(self.working_directory, 'exit_code')
 
         # Check if the process for the job is still running
         if self.check_pid(self.get_process_id()) and not os.path.exists(exit_code_path):
@@ -190,7 +190,7 @@ class Local(Scheduler):
         logging.info("Command `{}` returned `{}`".format(command, stdout))
 
         # Get the path to the exit code file
-        exit_code_path = os.path.join(self.get_working_directory(), 'exit_code')
+        exit_code_path = os.path.join(self.working_directory, 'exit_code')
 
         # Mark the job as cancelled
         open(exit_code_path, 'w').write("2")
@@ -201,11 +201,9 @@ class Local(Scheduler):
 
         :return: Nothing
         """
-        # Get the output path for this job
-        working_directory = self.get_working_directory()
 
         # Make sure that the directory is deleted if it exists
         try:
-            shutil.rmtree(working_directory)
+            shutil.rmtree(self.working_directory)
         except:
             pass

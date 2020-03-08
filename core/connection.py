@@ -11,10 +11,12 @@ from threading import Thread
 import websockets
 
 from scheduler.status import JobStatus
-from utils.scheduler import Scheduler
+from settings import settings
+from utils.packet_scheduler import PacketScheduler
 from .db import get_job_by_ui_id, update_job, delete_job, get_all_jobs
 from .handler import handle_message
 from .messaging.message import Message
+from .messaging.message_ids import UPDATE_JOB
 
 
 class JobController:
@@ -24,8 +26,6 @@ class JobController:
         self.sock = None
         self.queue = asyncio.Queue()
         self.scheduler = None
-
-
 
     async def check_job_status(self, job, force_notification=False):
         """
@@ -50,11 +50,11 @@ class JobController:
         # Check if the status has changed or not
         if job['status'] != status or force_notification:
             # Send the status to the server to assure receipt in case the job is to be deleted from our database
-            result = Message(Message.UPDATE_JOB)
+            result = Message(UPDATE_JOB)
             result.push_uint(job['ui_id'])
             result.push_uint(status)
             result.push_string(info)
-            await self.sock.send(result.to_bytes())
+            await self.sock.send(result)
 
             # Check if we should delete the job from the database
             if status > JobStatus.RUNNING:
@@ -308,9 +308,9 @@ class JobController:
         """
 
         self.sock = await websockets.connect(
-            '{}/ws/?token={}'.format(self.settings.HPC_WEBSOCKET_SERVER, self.argv[1]))
+            '{}/ws/?token={}'.format(settings.HPC_WEBSOCKET_SERVER, self.argv[1]))
 
-        self.scheduler = Scheduler(self.sock)
+        self.scheduler = PacketScheduler(self.sock)
 
         # Create the consumer and producer tasks
         consumer_task = asyncio.ensure_future(self.recv_handler())

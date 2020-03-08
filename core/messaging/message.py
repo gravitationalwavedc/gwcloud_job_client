@@ -48,11 +48,7 @@ class Message:
     # uint: The HpcJob id
     SUBMIT_JOB = 1000
 
-    # Sent by the client to the server to update the status of a job
-    # uint: The HpcJob id
-    # uint: The JobStatus
-    # string: Any additional information about this status
-    UPDATE_JOB = 1001
+
 
     # Sent by the server to cancel a job
     # uint: The HpcJob id to cancel
@@ -117,6 +113,9 @@ class Message:
 
             # Reset the offset to the start of the message
             self.offset = 0
+
+            if source is None or priority is None:
+                raise Exception("Source and priority were not provided")
 
             # Set the source and priority
             self.source = source

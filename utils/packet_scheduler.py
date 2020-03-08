@@ -4,7 +4,7 @@ import threading
 from time import sleep
 
 
-class Scheduler:
+class PacketScheduler:
     class Priority:
         Lowest = 19
         Medium = 10
@@ -15,7 +15,7 @@ class Scheduler:
 
         # Initialise the queue
         self.queue = []
-        for i in range(Scheduler.Priority.Lowest):
+        for i in range(PacketScheduler.Priority.Lowest+1):
             self.queue.append({})
 
         # Create the access lock
@@ -51,8 +51,8 @@ class Scheduler:
     async def run_next(self):
         # Iterate over the priorities
         for current_priority in range(len(self.queue)):
-            had_data = False
             while True:
+                had_data = False
                 with self.mutex:
                     # Iterate over the map
                     for k, v in self.queue[current_priority].items():

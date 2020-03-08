@@ -11,8 +11,8 @@ from utils.daemon import Daemon
 
 
 # class JobControllerDaemon(Daemon):
-class JobControllerDaemon():
-    def __init__(self, std_in='/dev/null', std_out='/dev/null', std_err='/dev/null', argv=[]):
+class JobControllerDaemon:
+    def __init__(self, std_in='/dev/null', std_out='/dev/null', std_err='/dev/null', argv=None):
         """
         Class constructor
         :param pid_file: The path to the process id file (from settings.py)
@@ -21,6 +21,9 @@ class JobControllerDaemon():
         # super().__init__(std_in, std_out, std_err)
 
         # Set globals
+        if argv is None:
+            argv = []
+
         self.logger = None
         self.sleep_time = None
         self.controller = None
@@ -67,7 +70,7 @@ class JobControllerDaemon():
         logging.info('Job Controller starting...')
 
         # Create the Job Controller
-        self.controller = JobController(self.argv, settings)
+        self.controller = JobController(self.argv)
 
         try:
             # Log that the daemon is running

@@ -6,15 +6,17 @@ class Scheduler:
     Base stub scheduler - this class should be inherited and extended
     """
 
-    def __init__(self, ui_id, job_id):
+    def __init__(self, job_id, scheduler_id, working_directory):
         """
         Initialises the job scheduler
 
-        :param ui_id: The UI ID of the job
-        :param job_id: The scheduler job id
+        :param working_directory: The working directory for this job
+        :param job_id: The UI ID of the job
+        :param scheduler_id: The scheduler job id
         """
-        self.ui_id = ui_id
         self.job_id = job_id
+        self.scheduler_id = scheduler_id
+        self.working_directory = working_directory
 
     def submit(self, script):
         """
@@ -37,7 +39,6 @@ class Scheduler:
         """
         Cancel a running job
 
-        :param job_id: The id of the job to cancel
         :return: Nothing
         """
         raise NotImplementedError()

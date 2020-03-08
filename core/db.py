@@ -94,7 +94,7 @@ async def update_job(new_job):
         found = False
         for job in db['jobs']:
             # Check if this job matches the job being updated
-            if job['ui_id'] == new_job['ui_id']:
+            if job['job_id'] == new_job['job_id']:
                 # Found the job, update it
                 found = True
                 job.update(new_job)
