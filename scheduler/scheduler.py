@@ -18,7 +18,7 @@ class Scheduler:
         self.scheduler_id = scheduler_id
         self.working_directory = working_directory
 
-    def submit(self, script):
+    async def submit(self, script):
         """
         Used to submit a job on the cluster
 
@@ -27,7 +27,7 @@ class Scheduler:
         """
         raise NotImplementedError()
 
-    def status(self):
+    async def status(self):
         """
         Get the status of a job
 
@@ -35,7 +35,7 @@ class Scheduler:
         """
         raise NotImplementedError()
 
-    def cancel(self):
+    async def cancel(self):
         """
         Cancel a running job
 
@@ -43,7 +43,7 @@ class Scheduler:
         """
         raise NotImplementedError()
 
-    def delete_data(self):
+    async def delete_data(self):
         """
         Delete all job data
 

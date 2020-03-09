@@ -13,6 +13,7 @@ import websockets
 from scheduler.status import JobStatus
 from settings import settings
 from utils.packet_scheduler import PacketScheduler
+from .check_job_status import check_job_status_thread
 from .db import get_job_by_ui_id, update_job, delete_job, get_all_jobs
 from .handler import handle_message
 from .messaging.message import Message
@@ -26,70 +27,6 @@ class JobController:
         self.sock = None
         self.queue = asyncio.Queue()
         self.scheduler = None
-
-    async def check_job_status(self, job, force_notification=False):
-        """
-        Checks a job to see what it's current status is on the cluster. If the job state has changed since we last
-        checked, then update the server. If force_notification is True, it will update the server even if the job
-        status hasn't changed
-
-        :param job: The job to check
-        :param force_notification: If we should notify the server of the job status even if it hasn't changed
-        :return: Nothing
-        """
-        # Check that this job actually has a local id to check
-        if not job['job_id']:
-            return
-
-        # Get a scheduler for this job
-        scheduler = self.scheduler_klass(self.settings, job['ui_id'], job['job_id'])
-
-        # Get the status of the job
-        status, info = scheduler.status()
-
-        # Check if the status has changed or not
-        if job['status'] != status or force_notification:
-            # Send the status to the server to assure receipt in case the job is to be deleted from our database
-            result = Message(UPDATE_JOB)
-            result.push_uint(job['ui_id'])
-            result.push_uint(status)
-            result.push_string(info)
-            await self.sock.send(result)
-
-            # Check if we should delete the job from the database
-            if status > JobStatus.RUNNING:
-                # Yes, the job is no longer running, remove it from the database
-                await delete_job(job)
-            else:
-                # Update and save the job status
-                job['status'] = status
-                await update_job(job)
-
-    async def check_job_status_thread(self):
-        """
-        Thread entry point for checking the current status of running jobs
-
-        :return: Nothing
-        """
-        while True:
-            try:
-                jobs = await get_all_jobs()
-                logging.info("Jobs {}".format(str(jobs)))
-                for job in jobs:
-                    await self.check_job_status(job)
-            except Exception as Exp:
-                # An exception occurred, log the exception to the log
-                logging.error("Error in check job status")
-                logging.error(type(Exp))
-                logging.error(Exp.args)
-                logging.error(Exp)
-
-                # Also log the stack trace
-                exc_type, exc_value, exc_traceback = sys.exc_info()
-                lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-                logging.error(''.join('!! ' + line for line in lines))
-
-            await sleep(60)
 
     async def handle_message(self, message):
         """
@@ -316,7 +253,8 @@ class JobController:
         consumer_task = asyncio.ensure_future(self.recv_handler())
         producer_task = asyncio.ensure_future(self.send_handler())
 
-        # asyncio.ensure_future(self.check_job_status_thread())
+        # Start the job status thread
+        asyncio.ensure_future(check_job_status_thread(self))
 
         # Wait for one of the tasks to finish
         done, pending = await asyncio.wait(

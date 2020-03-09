@@ -35,9 +35,9 @@ class Slurm(Scheduler):
         'TIMEOUT': 'Job terminated upon reaching its time limit.'
     }
 
-    def __init__(self, settings, ui_id, job_id):
+    def __init__(self, settings, ui_id, job_id, working_directory):
         # Init the super class
-        super().__init__(settings, ui_id, job_id)
+        super().__init__(settings, ui_id, job_id, working_directory)
 
         # Set the slurm template
         self.slurm_template = 'settings/slurm.sh.template'
@@ -78,7 +78,7 @@ class Slurm(Scheduler):
 
         :return: The full path to the slurm script
         """
-        return os.path.join(self.get_working_directory(), str(self.ui_id) + '.sh')
+        return os.path.join(self.working_directory, str(self.job_id) + '.sh')
 
     def _submit(self, job_parameters):
         """
@@ -90,22 +90,14 @@ class Slurm(Scheduler):
         :param job_parameters: The job parameters for this job
         :return: An integer identifier for the submitted job
         """
-        # Get the output path for this job
-        working_directory = self.get_working_directory()
-
-        # Make sure that the directory is deleted if it already exists
-        try:
-            shutil.rmtree(working_directory)
-        except:
-            pass
 
         # Make sure the working directory is recreated
-        os.makedirs(working_directory, 0o770, True)
+        os.makedirs(self.working_directory, 0o770, True)
 
         # Actually submit the job
         return self.submit(job_parameters)
 
-    def submit(self, job_parameters):
+    def submit(self, script):
         """
         Used to submit a job on the cluster
 
@@ -118,9 +110,6 @@ class Slurm(Scheduler):
         # Render the template
         template = template % self.generate_template_dict()
 
-        # Get the output path for this job
-        working_directory = self.get_working_directory()
-
         # Get the path to the slurm script
         slurm_script = self.get_slurm_script_file_path()
 
@@ -129,7 +118,7 @@ class Slurm(Scheduler):
             f.write(template)
 
         # Construct the sbatch command
-        command = "cd {} && sbatch {}".format(working_directory, slurm_script)
+        command = "cd {} && sbatch {}".format(self.working_directory, slurm_script)
 
         # Execute the sbatch command
         stdout = None

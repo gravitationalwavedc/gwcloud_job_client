@@ -79,7 +79,7 @@ class Local(Scheduler):
         """
         return os.path.join(self.working_directory, 'pid')
 
-    def submit(self, script):
+    async def submit(self, script):
         """
         Used to submit a job on the cluster
 
@@ -98,8 +98,8 @@ class Local(Scheduler):
             f.write(exec_script)
 
         # Make both generated files executable
-        os.chmod(self.get_local_execution_script_file_path(), stat.S_IRUSR | stat.S_IXUSR)
-        os.chmod(script, stat.S_IRUSR | stat.S_IXUSR)
+        await os.chmod(self.get_local_execution_script_file_path(), stat.S_IRUSR | stat.S_IXUSR)
+        await os.chmod(script, stat.S_IRUSR | stat.S_IXUSR)
 
         # Execute the job in the background
         os.system("set -m; exec nohup {} & echo $! > {}".
@@ -141,7 +141,7 @@ class Local(Scheduler):
         # Get the process id of the job
         return int(open(self.get_pid_path(), 'r').read().strip())
 
-    def status(self):
+    async def status(self):
         """
         Get the status of a job
 
@@ -173,7 +173,7 @@ class Local(Scheduler):
             # Some other problem happened
             return JobStatus.ERROR, "Job did not emit an exit code, probably it was killed externally"
 
-    def cancel(self):
+    async def cancel(self):
         """
         Cancel a running job
         """
@@ -183,7 +183,7 @@ class Local(Scheduler):
         command = 'kill -9 -- -$(ps -o pgid= {} | grep -o [0-9]*)'.format(self.get_process_id())
 
         # Cancel the job
-        stdout = subprocess.check_output(command, shell=True)
+        stdout = await subprocess.check_output(command, shell=True)
 
         # todo: Handle errors
         # Get the output
@@ -195,7 +195,7 @@ class Local(Scheduler):
         # Mark the job as cancelled
         open(exit_code_path, 'w').write("2")
 
-    def delete_data(self):
+    async def delete_data(self):
         """
         Delete all job data
 
@@ -204,6 +204,6 @@ class Local(Scheduler):
 
         # Make sure that the directory is deleted if it exists
         try:
-            shutil.rmtree(self.working_directory)
+            await shutil.rmtree(self.working_directory)
         except:
             pass
