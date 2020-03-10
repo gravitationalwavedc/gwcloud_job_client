@@ -33,6 +33,8 @@ async def submit_job(con, msg):
 
     bundle_path = get_bundle_path()
 
+    logging.info("Attempting to submit new job with UI ID: {}".format(job_id))
+
     # Synchronise the bundle fetch if needed
     async with lock:
         # Check if the bundle exists or not
@@ -89,7 +91,7 @@ async def submit_job(con, msg):
     # script_path contains the path to the generated submission script
 
     # Submit the job
-    scheduler_id = scheduler.submit(script_path)
+    scheduler_id = await scheduler.submit(script_path)
 
     # Check if there was an issue with the job
     if not scheduler_id:

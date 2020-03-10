@@ -65,8 +65,6 @@ class JobController:
             # Get the parameters for the job
             job_params = pickle.loads(msg.pop_bytes())
 
-            logging.info("Attempting to submit new job with UI ID: {}".format(ui_id))
-
             # Check if this job has already been submitted by us
             job = await get_job_by_ui_id(ui_id)
 

@@ -101,7 +101,7 @@ class Local(Scheduler):
         await os.chmod(self.get_local_execution_script_file_path(), stat.S_IRUSR | stat.S_IXUSR)
         await os.chmod(script, stat.S_IRUSR | stat.S_IXUSR)
 
-        # Execute the job in the background
+        # Execute the job in the background - doesn't block due to &
         os.system("set -m; exec nohup {} & echo $! > {}".
                   format(self.get_local_execution_script_file_path(), self.get_pid_path()))
 
