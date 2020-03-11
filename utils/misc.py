@@ -3,7 +3,8 @@ import inspect
 import json
 import logging
 import os
-import subprocess
+import asyncio
+from subprocess import list2cmdline
 
 from settings import settings
 from utils import shared_memory
@@ -78,16 +79,17 @@ async def run_bundle(bundle_function, bundle_path, bundle_hash, details, job_dat
     # Get the loader source
     source = get_bundle_loader_source(bundle_function, shm.name)
 
-    # Attempt to call the bundle to create the submission script
-    args = [os.path.join(bundle_path, bundle_hash, 'venv', 'bin', 'python'), '-c', source]
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                         cwd=os.path.join(bundle_path, bundle_hash))
-
-    # Wait for the process to finish
-    await p.wait()
+    # Attempt to call the function from the bundle
+    args = list2cmdline([os.path.join(bundle_path, bundle_hash, 'venv', 'bin', 'python'), '-c', source])
+    p = await asyncio.create_subprocess_shell(
+        args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=os.path.join(bundle_path, bundle_hash)
+    )
 
     # Get the stdout and stderr output from the command
-    out, err = p.communicate()
+    out, err = await p.communicate()
 
     # Close the shared memory area
     shm.unlink()

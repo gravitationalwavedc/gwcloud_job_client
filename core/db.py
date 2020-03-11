@@ -126,7 +126,7 @@ async def delete_job(job):
         # Iterate over the jobs in the database
         for idx in range(len(db['jobs'])):
             # Check if this job matches the job being deleted
-            if db['jobs'][idx]['ui_id'] == job['ui_id']:
+            if db['jobs'][idx]['job_id'] == job['job_id']:
                 # Found the job, delete it
                 del db['jobs'][idx]
                 break

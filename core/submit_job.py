@@ -82,7 +82,7 @@ async def submit_job(con, msg):
     await update_job(job)
 
     # Run the bundle.py submit
-    script_path, success = run_bundle("submit", bundle_path, bundle_hash, details, params)
+    script_path, success = await run_bundle("submit", bundle_path, bundle_hash, details, params)
 
     # Check for success
     if not success:
@@ -105,7 +105,7 @@ async def submit_job(con, msg):
         result.push_uint(JobStatus.ERROR)
         result.push_string("Unable to submit job. Please check the logs as to why.")
         # Send the result
-        con.connection.queue_message(result)
+        con.scheduler.queue_message(result)
     else:
         # Update and save the job
         job['scheduler_id'] = scheduler_id
@@ -119,4 +119,4 @@ async def submit_job(con, msg):
         result.push_uint(JobStatus.SUBMITTED)
         result.push_string("Job submitted successfully")
         # Send the result
-        con.connection.queue_message(result)
+        con.scheduler.queue_message(result)

@@ -9,6 +9,7 @@ from core.messaging.message_ids import UPDATE_JOB
 from core.submit_job import get_default_details
 from scheduler.status import JobStatus
 from utils.misc import run_bundle, get_bundle_path, get_scheduler_instance
+from utils.packet_scheduler import PacketScheduler
 
 
 async def check_job_status(con, job, force_notification=False):
@@ -34,7 +35,7 @@ async def check_job_status(con, job, force_notification=False):
     details['job_id'] = job['job_id']
 
     # Get the working directory
-    working_directory, success = run_bundle("working_directory", bundle_path, job['bundle_hash'], details, "")
+    working_directory, success = await run_bundle("working_directory", bundle_path, job['bundle_hash'], details, "")
 
     # Check for success
     if not success:
@@ -49,11 +50,11 @@ async def check_job_status(con, job, force_notification=False):
     # Check if the status has changed or not
     if job['status'] != status or force_notification:
         # Send the status to the server to assure receipt in case the job is to be deleted from our database
-        result = Message(UPDATE_JOB)
-        result.push_uint(job['ui_id'])
+        result = Message(UPDATE_JOB, source=job['bundle_hash'] + "_" + str(job['job_id']), priority=PacketScheduler.Priority.Medium)
+        result.push_uint(job['job_id'])
         result.push_uint(status)
         result.push_string(info)
-        con.connection.queue_message(result)
+        con.scheduler.queue_message(result)
 
         # Check if we should delete the job from the database
         if status > JobStatus.RUNNING:
@@ -65,7 +66,7 @@ async def check_job_status(con, job, force_notification=False):
             await update_job(job)
 
 
-async def check_job_status_thread(self):
+async def check_job_status_thread(con):
     """
     Thread entry point for checking the current status of running jobs
 
@@ -76,7 +77,7 @@ async def check_job_status_thread(self):
             jobs = await get_all_jobs()
             logging.info("Jobs {}".format(str(jobs)))
             for job in jobs:
-                await self.check_job_status(job)
+                await check_job_status(con, job)
         except Exception as Exp:
             # An exception occurred, log the exception to the log
             logging.error("Error in check job status")
