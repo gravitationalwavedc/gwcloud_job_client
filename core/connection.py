@@ -13,7 +13,7 @@ import websockets
 from scheduler.status import JobStatus
 from settings import settings
 from utils.packet_scheduler import PacketScheduler
-from .check_job_status import check_job_status_thread
+from .check_job_status import check_job_status_thread, check_all_jobs
 from .db import get_job_by_ui_id, update_job, delete_job, get_all_jobs
 from .handler import handle_message
 from .messaging.message import Message
@@ -253,6 +253,9 @@ class JobController:
 
         # Start the job status thread
         asyncio.ensure_future(check_job_status_thread(self))
+
+        # Run a job check
+        await check_all_jobs(self)
 
         # Wait for one of the tasks to finish
         done, pending = await asyncio.wait(

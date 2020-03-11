@@ -10,6 +10,18 @@ from settings import settings
 from utils import shared_memory
 
 
+def get_default_details():
+    """
+    Returns the default 'details' dictionary that is passed to the bundle.py file in each bundle
+
+    :return: The default details dictionary
+    """
+
+    return {
+        'cluster': settings.CLUSTER_NAME,
+    }
+
+
 def get_bundle_path():
     return os.path.join(os.path.dirname(__file__), "..", "bundles", "unpacked")
 

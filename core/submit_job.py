@@ -3,27 +3,16 @@ import asyncio
 import logging
 import os
 
-from core.db import is_bundle_queued, queue_bundle, queue_job, update_job, delete_job
+from core.check_job_status import check_job_status
+from core.db import is_bundle_queued, queue_bundle, queue_job, update_job, delete_job, get_job_by_ui_id
 from core.messaging.message import Message
 from core.messaging.message_ids import REQUEST_BUNDLE, UPDATE_JOB
 from scheduler.status import JobStatus
 from settings import settings
-from utils.misc import get_bundle_path, run_bundle, get_scheduler_instance
+from utils.misc import get_bundle_path, run_bundle, get_scheduler_instance, get_default_details
 from utils.packet_scheduler import PacketScheduler
 
 lock = asyncio.Lock()
-
-
-def get_default_details():
-    """
-    Returns the default 'details' dictionary that is passed to the bundle.py file in each bundle
-
-    :return: The default details dictionary
-    """
-
-    return {
-        'cluster': settings.CLUSTER_NAME,
-    }
 
 
 async def submit_job(con, msg):
@@ -32,6 +21,15 @@ async def submit_job(con, msg):
     params = msg.pop_string()
 
     bundle_path = get_bundle_path()
+
+    # Check if this job has already been submitted
+    job = await get_job_by_ui_id(job_id)
+
+    if job and job['job_id']:
+        logging.info(f"Job with job id {job_id} has already been submitted, checking status...")
+        # If so, check the state of the job and notify the server of it's current state
+        await check_job_status(con, job, True)
+        return
 
     logging.info("Attempting to submit new job with UI ID: {}".format(job_id))
 
@@ -72,7 +70,7 @@ async def submit_job(con, msg):
 
     # Check for success
     if not success:
-        raise Exception("Failed to run the working_directory function from bundle {}")
+        raise Exception(f"Failed to run the working_directory function from bundle {bundle_hash}")
 
     # Instantiate the scheduler
     scheduler = get_scheduler_instance()(job_id, None, working_directory)
@@ -86,7 +84,7 @@ async def submit_job(con, msg):
 
     # Check for success
     if not success:
-        raise Exception("Failed to run the submit function from bundle {}")
+        raise Exception(f"Failed to run the submit function from bundle {bundle_hash}")
 
     # script_path contains the path to the generated submission script
 

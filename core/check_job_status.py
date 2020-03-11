@@ -6,9 +6,8 @@ from asyncio import sleep
 from core.db import delete_job, update_job, get_all_jobs
 from core.messaging.message import Message
 from core.messaging.message_ids import UPDATE_JOB
-from core.submit_job import get_default_details
 from scheduler.status import JobStatus
-from utils.misc import run_bundle, get_bundle_path, get_scheduler_instance
+from utils.misc import run_bundle, get_bundle_path, get_scheduler_instance, get_default_details
 from utils.packet_scheduler import PacketScheduler
 
 
@@ -66,6 +65,25 @@ async def check_job_status(con, job, force_notification=False):
             await update_job(job)
 
 
+async def check_all_jobs(con):
+    try:
+        jobs = await get_all_jobs()
+        logging.info("Jobs {}".format(str(jobs)))
+        for job in jobs:
+            await check_job_status(con, job)
+    except Exception as Exp:
+        # An exception occurred, log the exception to the log
+        logging.error("Error in check job status")
+        logging.error(type(Exp))
+        logging.error(Exp.args)
+        logging.error(Exp)
+
+        # Also log the stack trace
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+        logging.error(''.join('!! ' + line for line in lines))
+
+
 async def check_job_status_thread(con):
     """
     Thread entry point for checking the current status of running jobs
@@ -73,21 +91,5 @@ async def check_job_status_thread(con):
     :return: Nothing
     """
     while True:
-        try:
-            jobs = await get_all_jobs()
-            logging.info("Jobs {}".format(str(jobs)))
-            for job in jobs:
-                await check_job_status(con, job)
-        except Exception as Exp:
-            # An exception occurred, log the exception to the log
-            logging.error("Error in check job status")
-            logging.error(type(Exp))
-            logging.error(Exp.args)
-            logging.error(Exp)
-
-            # Also log the stack trace
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-            logging.error(''.join('!! ' + line for line in lines))
-
+        await check_all_jobs(con)
         await sleep(60)

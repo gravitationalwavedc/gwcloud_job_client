@@ -50,11 +50,11 @@ async def get_all_jobs():
         return db['jobs']
 
 
-async def get_job_by_ui_id(ui_id):
+async def get_job_by_ui_id(job_id):
     """
     Gets a job record if one exists for the provided ui id
 
-    :param ui_id: The ui id of the job to look up
+    :param job_id: The ui id of the job to look up
     :return: The job details if the job was found otherwise None
     """
     # Acquire the lock
@@ -65,7 +65,7 @@ async def get_job_by_ui_id(ui_id):
         # Check if the job exists in the database
         if 'jobs' in db:
             for job in db['jobs']:
-                if job['ui_id'] == ui_id:
+                if job['job_id'] == job_id:
                     # Found the job, return it
                     return job
 
