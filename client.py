@@ -10,15 +10,14 @@ from settings import settings
 from utils.daemon import Daemon
 
 
-# class JobControllerDaemon(Daemon):
-class JobControllerDaemon:
+class JobControllerDaemon(Daemon):
     def __init__(self, std_in='/dev/null', std_out='/dev/null', std_err='/dev/null', argv=None):
         """
         Class constructor
         :param pid_file: The path to the process id file (from settings.py)
         """
         # Call the super constructor
-        # super().__init__(std_in, std_out, std_err)
+        super().__init__(std_in, std_out, std_err)
 
         # Set globals
         if argv is None:
@@ -105,8 +104,7 @@ if __name__ == '__main__':
     # Check that the right number of arguments were provided to the daemon on the command line
     if len(sys.argv) == 2:
         print('Starting Job Controller')
-        # daemon.start()
-        daemon.run()
+        daemon.start()
 
         # Exit with success
         sys.exit(0)
