@@ -4,5 +4,4 @@
 #
 #    pip-compile requirements.in
 #
-filelock==3.0.12          # via -r requirements.in
 websockets==8.1           # via -r requirements.in
