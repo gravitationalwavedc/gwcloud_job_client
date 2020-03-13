@@ -53,7 +53,7 @@ async def check_job_status(con, job, force_notification=False):
         result.push_uint(job['job_id'])
         result.push_uint(status)
         result.push_string(info)
-        con.scheduler.queue_message(result)
+        await con.scheduler.queue_message(result)
 
         # Check if we should delete the job from the database
         if status > JobStatus.RUNNING:

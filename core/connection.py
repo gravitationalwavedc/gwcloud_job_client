@@ -38,10 +38,7 @@ class JobController:
         # Convert the raw message to a Message object
         msg = Message(data=message)
 
-        logging.error(msg.id)
-        logging.error(msg.source)
-        logging.error("Done")
-
+        # Handle the message
         await handle_message(self, msg)
 
         return

@@ -45,7 +45,7 @@ async def submit_job(con, msg):
                 response = Message(REQUEST_BUNDLE, source="system", priority=PacketScheduler.Priority.Highest)
                 response.push_uint(job_id)
                 response.push_string(bundle_hash)
-                con.scheduler.queue_message(response)
+                await con.scheduler.queue_message(response)
 
                 # Mark the bundle as queued
                 await queue_bundle(bundle_hash)
@@ -103,7 +103,7 @@ async def submit_job(con, msg):
         result.push_uint(JobStatus.ERROR)
         result.push_string("Unable to submit job. Please check the logs as to why.")
         # Send the result
-        con.scheduler.queue_message(result)
+        await con.scheduler.queue_message(result)
     else:
         # Update and save the job
         job['scheduler_id'] = scheduler_id
@@ -117,4 +117,4 @@ async def submit_job(con, msg):
         result.push_uint(JobStatus.SUBMITTED)
         result.push_string("Job submitted successfully")
         # Send the result
-        con.scheduler.queue_message(result)
+        await con.scheduler.queue_message(result)
