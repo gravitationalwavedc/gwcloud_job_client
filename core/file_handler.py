@@ -6,7 +6,7 @@ import traceback
 from asyncio import sleep
 
 from core.messaging.message import Message
-from core.messaging.message_ids import FILE_ERROR, FILE_DETAILS, FILE_CHUNK
+from core.messaging.message_ids import FILE_ERROR, FILE_DETAILS, FILE_CHUNK, FILE_LIST_ERROR, FILE_LIST
 from utils.misc import run_bundle, get_bundle_path, get_default_details
 from utils.packet_scheduler import PacketScheduler
 
@@ -142,3 +142,116 @@ async def download_file(con, msg):
         # Clean up the transfer pause event if one exists
         if uuid in paused_file_transfers:
             del paused_file_transfers[uuid]
+
+
+async def get_file_list(con, msg):
+    # Get the job details
+    job_id = msg.pop_uint()
+    uuid = msg.pop_string()
+    bundle_hash = msg.pop_string()
+    dir_path = msg.pop_string()
+    is_recursive = msg.pop_bool()
+
+    # Create a dict to store the data for this job
+    details = get_default_details()
+    details['job_id'] = job_id
+
+    # Get the working directory
+    working_directory, success = await run_bundle("working_directory", get_bundle_path(), bundle_hash, details, "")
+
+    # Check for success
+    if not success:
+        raise Exception(f"Failed to run the working_directory function from bundle {bundle_hash}")
+
+    # Get the absolute path to the file
+    dir_path = os.path.abspath(os.path.join(working_directory, dir_path))
+
+    # Verify that this file really sits under the working directory
+    if not dir_path.startswith(working_directory):
+        logging.info(f"Path to list files is outside the working directory {dir_path}")
+        # Report that the file doesn't exist
+        result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
+        result.push_string(uuid)
+        result.push_string("File does not exist")
+        await con.scheduler.queue_message(result)
+        return
+
+    # Verify that the path exists
+    if not os.path.exists(dir_path):
+        logging.info(f"Path to list files not exist {dir_path}")
+        # Report that the file doesn't exist
+        result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
+        result.push_string(uuid)
+        result.push_string("File does not exist")
+        await con.scheduler.queue_message(result)
+        return
+
+    # Verify that the path is not a directory
+    if not os.path.isdir(dir_path):
+        logging.info(f"Path to list files is not directory {dir_path}")
+        # Report that the file doesn't exist
+        result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
+        result.push_string(uuid)
+        result.push_string("File does not exist")
+        await con.scheduler.queue_message(result)
+        return
+
+    logging.info(f"Trying to get file list {job_id} {uuid} {bundle_hash}")
+    logging.info(f"Path {dir_path}")
+
+    # Get the list of files requested
+    file_list = []
+    if is_recursive:
+        # This is a recursive searh
+        for root, dirnames, filenames in os.walk(dir_path):
+            # Iterate over the directories
+            for item in dirnames:
+                # Construct the real path to this directory
+                real_file_name = os.path.join(root, item)
+                # Add the file entry
+                file_list.append({
+                    # Remove the leading working directory
+                    'path': real_file_name[len(working_directory):],
+                    'is_dir': True,
+                    'size': os.path.getsize(real_file_name)
+                })
+
+            for item in filenames:
+                # Construct the real path to this file
+                real_file_name = os.path.join(root, item)
+                # Add the file entry
+                try:
+                    file_list.append({
+                        # Remove the leading working directory
+                        'path': real_file_name[len(working_directory):],
+                        'is_dir': False,
+                        'size': os.path.getsize(real_file_name)
+                    })
+                except FileNotFoundError:
+                    # Happens when trying to stat a symlink
+                    pass
+    else:
+        logging.info("getting files...")
+        # Not a recursive search
+        for item in os.listdir(dir_path):
+            logging.info(f"file {item}")
+            # Construct the real path to this file/directory
+            real_file_name = os.path.join(dir_path, item)
+            # Add the file entry
+            file_list.append({
+                # Remove the leading slash
+                'path': real_file_name[len(working_directory):],
+                'is_dir': os.path.isdir(real_file_name),
+                'size': os.path.getsize(real_file_name),
+            })
+
+    # Build the return message
+    result = Message(FILE_LIST, source=str(uuid), priority=PacketScheduler.Priority.Highest)
+    result.push_string(uuid)
+    result.push_uint(len(file_list))
+    for f in file_list:
+        result.push_string(f['path'])
+        result.push_bool(f['is_dir'])
+        result.push_ulong(f['size'])
+
+    await con.scheduler.queue_message(result)

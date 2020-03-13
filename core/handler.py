@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from core.file_handler import download_file, paused_file_transfers
+from core.file_handler import download_file, paused_file_transfers, get_file_list
 from core.messaging.message_ids import *
 from core.submit_job import submit_job
 
@@ -25,5 +25,7 @@ async def handle_message(con, msg):
         if uuid in paused_file_transfers:
             paused_file_transfers[uuid].set()
             del paused_file_transfers[uuid]
+    elif msg.id == FILE_LIST:
+        asyncio.ensure_future(get_file_list(con, msg))
     else:
         logging.error("Got unknown message ID from the server: " + str(msg.id) + " source: " + msg.source)
