@@ -1,23 +1,18 @@
 import asyncio
-import importlib
 import logging
-import os
-import pickle
 import sys
 import traceback
 from asyncio import sleep
-from threading import Thread
 
 import websockets
 
-from scheduler.status import JobStatus
+from utils.status import JobStatus
 from settings import settings
 from utils.packet_scheduler import PacketScheduler
 from .check_job_status import check_job_status_thread, check_all_jobs
-from .db import get_job_by_ui_id, update_job, delete_job, get_all_jobs
+from .db import get_job_by_ui_id
 from .handler import handle_message
 from .messaging.message import Message
-from .messaging.message_ids import UPDATE_JOB
 
 
 class JobController:
@@ -132,7 +127,7 @@ class JobController:
         """
 
         self.sock = await websockets.connect(
-            '{}/ws/?token={}'.format(settings.HPC_WEBSOCKET_SERVER, self.argv[1]))
+            '{}?token={}'.format(settings.HPC_WEBSOCKET_SERVER, self.argv[1]))
 
         self.scheduler = PacketScheduler(self.sock)
 

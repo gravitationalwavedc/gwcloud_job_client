@@ -7,9 +7,8 @@ from core.check_job_status import check_job_status
 from core.db import is_bundle_queued, queue_bundle, queue_job, update_job, delete_job, get_job_by_ui_id
 from core.messaging.message import Message
 from core.messaging.message_ids import REQUEST_BUNDLE, UPDATE_JOB
-from scheduler.status import JobStatus
-from settings import settings
-from utils.misc import get_bundle_path, run_bundle, get_scheduler_instance, get_default_details
+from utils.status import JobStatus
+from utils.misc import get_bundle_path, run_bundle, get_default_details
 from utils.packet_scheduler import PacketScheduler
 
 lock = asyncio.Lock()
@@ -65,31 +64,13 @@ async def submit_job(con, msg):
     details = get_default_details()
     details['job_id'] = job_id
 
-    # Get the working directory
-    working_directory, success = await run_bundle("working_directory", bundle_path, bundle_hash, details, params)
-
-    # Check for success
-    if not success:
-        raise Exception(f"Failed to run the working_directory function from bundle {bundle_hash}")
-
-    # Instantiate the scheduler
-    scheduler = get_scheduler_instance()(job_id, None, working_directory)
-
     # Create a new job object and save it
-    job = {'job_id': job_id, 'scheduler_id': None, 'status': JobStatus.SUBMITTING, 'bundle_hash': bundle_hash}
-    await update_job(job)
+    job = {'job_id': job_id, 'scheduler_id': None, 'status': {}, 'bundle_hash': bundle_hash}
 
     # Run the bundle.py submit
-    script_path, success = await run_bundle("submit", bundle_path, bundle_hash, details, params)
+    scheduler_id = await run_bundle("submit", bundle_path, bundle_hash, details, params)
 
-    # Check for success
-    if not success:
-        raise Exception(f"Failed to run the submit function from bundle {bundle_hash}")
-
-    # script_path contains the path to the generated submission script
-
-    # Submit the job
-    scheduler_id = await scheduler.submit(script_path)
+    await update_job(job)
 
     # Check if there was an issue with the job
     if not scheduler_id:
@@ -100,6 +81,7 @@ async def submit_job(con, msg):
         # Notify the server that the job is failed
         result = Message(UPDATE_JOB, source=str(job_id), priority=PacketScheduler.Priority.Medium)
         result.push_uint(job_id)
+        result.push_string("system")
         result.push_uint(JobStatus.ERROR)
         result.push_string("Unable to submit job. Please check the logs as to why.")
         # Send the result
@@ -114,6 +96,7 @@ async def submit_job(con, msg):
 
         result = Message(UPDATE_JOB, source=str(job_id), priority=PacketScheduler.Priority.Medium)
         result.push_uint(job_id)
+        result.push_string("system")
         result.push_uint(JobStatus.SUBMITTED)
         result.push_string("Job submitted successfully")
         # Send the result

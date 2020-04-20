@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import sys
 import traceback
@@ -6,8 +7,8 @@ from asyncio import sleep
 from core.db import delete_job, update_job, get_all_jobs
 from core.messaging.message import Message
 from core.messaging.message_ids import UPDATE_JOB
-from scheduler.status import JobStatus
-from utils.misc import run_bundle, get_bundle_path, get_scheduler_instance, get_default_details
+from utils.status import JobStatus
+from utils.misc import run_bundle, get_bundle_path, get_default_details
 from utils.packet_scheduler import PacketScheduler
 
 
@@ -32,45 +33,64 @@ async def check_job_status(con, job, force_notification=False):
     # Create a dict to store the data for this job
     details = get_default_details()
     details['job_id'] = job['job_id']
-
-    # Get the working directory
-    working_directory, success = await run_bundle("working_directory", bundle_path, job['bundle_hash'], details, "")
-
-    # Check for success
-    if not success:
-        raise Exception("Failed to run the working_directory function from bundle {}")
-
-    # Instantiate the scheduler
-    scheduler = get_scheduler_instance()(job['job_id'], job['scheduler_id'], working_directory)
+    details['scheduler_id'] = job['scheduler_id']
 
     # Get the status of the job
-    status, info = await scheduler.status()
+    _status = await run_bundle("status", bundle_path, job['bundle_hash'], details, "")
 
     # Check if the status has changed or not
-    if job['status'] != status or force_notification:
-        # Send the status to the server to assure receipt in case the job is to be deleted from our database
-        result = Message(UPDATE_JOB, source=job['bundle_hash'] + "_" + str(job['job_id']), priority=PacketScheduler.Priority.Medium)
-        result.push_uint(job['job_id'])
-        result.push_uint(status)
-        result.push_string(info)
-        await con.scheduler.queue_message(result)
+    for stat in _status['status']:
+        info = stat["info"]
+        status = stat["status"]
+        what = stat['what']
 
-        # Check if we should delete the job from the database
-        if status > JobStatus.RUNNING:
-            # Yes, the job is no longer running, remove it from the database
-            await delete_job(job)
-        else:
-            # Update and save the job status
-            job['status'] = status
-            await update_job(job)
+        if what not in job['status'] or job['status'][what] != status or force_notification:
+            # Update the database
+            job['status'][what] = status
+
+            # Send the status to the server
+            result = Message(
+                UPDATE_JOB,
+                source=job['bundle_hash'] + "_" + str(job['job_id']),
+                priority=PacketScheduler.Priority.Medium
+            )
+            result.push_uint(job['job_id'])
+            result.push_string(what)
+            result.push_uint(status)
+            result.push_string(info)
+            await con.scheduler.queue_message(result)
+
+    # Update any changes in the database
+    await update_job(job)
+
+    job_error = False
+    for state in job['status'].values():
+        # Check if any of the jobs are in error state
+        if state > JobStatus.RUNNING and state != JobStatus.COMPLETED:
+            job_error = True
+
+    job_complete = True
+    for state in job['status'].values():
+        # Check if all jobs are complete
+        if state != JobStatus.COMPLETED:
+            job_complete = False
+
+    # Check if there was an error, or if all jobs have completed
+    if job_error or (_status['complete'] and job_complete >= 1):
+        await delete_job(job)
 
 
 async def check_all_jobs(con):
     try:
         jobs = await get_all_jobs()
         logging.info("Jobs {}".format(str(jobs)))
+
+        futures = []
         for job in jobs:
-            await check_job_status(con, job)
+            futures.append(asyncio.ensure_future(check_job_status(con, job)))
+
+        if len(futures):
+            await asyncio.wait(futures)
     except Exception as Exp:
         # An exception occurred, log the exception to the log
         logging.error("Error in check job status")
@@ -92,4 +112,4 @@ async def check_job_status_thread(con):
     """
     while True:
         await check_all_jobs(con)
-        await sleep(60)
+        await sleep(5)

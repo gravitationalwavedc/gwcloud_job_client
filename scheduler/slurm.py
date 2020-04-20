@@ -5,7 +5,7 @@ import subprocess
 import uuid
 from math import floor
 
-from .status import JobStatus
+from utils.status import JobStatus
 from .scheduler import Scheduler
 
 
@@ -35,9 +35,9 @@ class Slurm(Scheduler):
         'TIMEOUT': 'Job terminated upon reaching its time limit.'
     }
 
-    def __init__(self, settings, ui_id, job_id, working_directory):
+    def __init__(self, settings, ui_id, job_id):
         # Init the super class
-        super().__init__(settings, ui_id, job_id, working_directory)
+        super().__init__(settings, ui_id, job_id)
 
         # Set the slurm template
         self.slurm_template = 'settings/slurm.sh.template'

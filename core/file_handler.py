@@ -28,11 +28,7 @@ async def download_file(con, msg):
     details['job_id'] = job_id
 
     # Get the working directory
-    working_directory, success = await run_bundle("working_directory", get_bundle_path(), bundle_hash, details, "")
-
-    # Check for success
-    if not success:
-        raise Exception(f"Failed to run the working_directory function from bundle {bundle_hash}")
+    working_directory = await run_bundle("working_directory", get_bundle_path(), bundle_hash, details, "")
 
     # Get the absolute path to the file
     file_path = os.path.abspath(os.path.join(working_directory, file_path))
@@ -157,11 +153,7 @@ async def get_file_list(con, msg):
     details['job_id'] = job_id
 
     # Get the working directory
-    working_directory, success = await run_bundle("working_directory", get_bundle_path(), bundle_hash, details, "")
-
-    # Check for success
-    if not success:
-        raise Exception(f"Failed to run the working_directory function from bundle {bundle_hash}")
+    working_directory = await run_bundle("working_directory", get_bundle_path(), bundle_hash, details, "")
 
     # Get the absolute path to the file
     dir_path = os.path.abspath(os.path.join(working_directory, dir_path))

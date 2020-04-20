@@ -5,7 +5,7 @@ import shutil
 import stat
 import subprocess
 
-from .status import JobStatus
+from utils.status import JobStatus
 from .scheduler import Scheduler
 
 SUBMISSION_TEMPLATE = """\

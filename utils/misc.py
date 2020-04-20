@@ -5,6 +5,7 @@ import logging
 import os
 import asyncio
 from subprocess import list2cmdline
+import pickle
 
 from settings import settings
 from utils import shared_memory
@@ -55,7 +56,7 @@ data = json.loads(data)
 import bundle
 result = bundle.{bundle_function}(data['details'], data['job_data'])
 
-print(result)
+print(json.dumps(result))
     """
 
     return source
@@ -91,8 +92,8 @@ async def run_bundle(bundle_function, bundle_path, bundle_hash, details, job_dat
     # Get the loader source
     source = get_bundle_loader_source(bundle_function, shm.name)
 
-    # Attempt to call the function from the bundle
-    args = list2cmdline([os.path.join(bundle_path, bundle_hash, 'venv', 'bin', 'python'), '-c', source])
+    # Attempt to call the function from the bundle after sourcing the venv
+    args = list2cmdline(['.', os.path.join(bundle_path, bundle_hash, 'venv', 'bin', 'activate'), ";", os.path.join(bundle_path, bundle_hash, 'venv', 'bin', 'python'), '-c', source])
     p = await asyncio.create_subprocess_shell(
         args,
         stdout=asyncio.subprocess.PIPE,
@@ -112,25 +113,18 @@ async def run_bundle(bundle_function, bundle_path, bundle_hash, details, job_dat
     # Log the command and output
     logging.info("Running bundle command submit for " + bundle_hash)
     logging.info("Gave output:")
+    logging.info("Error code:" + str(p.returncode))
     logging.info("stdout: " + out)
     logging.info("stderr: " + err)
+
+    # Check for success
+    if p.returncode != 0:
+        raise Exception(f"Failed to run the submit function from bundle {bundle_hash}")
 
     # Get the last line of output
     lines = out.splitlines()
     result = out.splitlines()[-1] if len(lines) else None
+    result = json.loads(result)
 
     # Return the result and exit success
-    return result, p.returncode == 0
-
-
-def get_scheduler_instance():
-    """
-    Returns the class specified by the HPC_SCHEDULER_CLASS setting
-
-    :return: The Class identified by HPC_SCHEDULER_CLASS
-    """
-    # Split the class path by full stops
-    class_bits = settings.HPC_SCHEDULER_CLASS.split('.')
-
-    # Import and return the class
-    return getattr(importlib.import_module('.'.join(class_bits[:-1])), class_bits[-1])
+    return result
