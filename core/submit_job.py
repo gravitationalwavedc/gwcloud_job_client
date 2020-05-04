@@ -24,6 +24,11 @@ async def submit_job(con, msg):
     # Check if this job has already been submitted
     job = await get_job_by_ui_id(job_id)
 
+    # If the job is still waiting to be submitted - there is nothing more to do
+    if job and 'submit_lock' in job and job['submit_lock']:
+        logging.info(f"Job with {job_id} is being submitted, nothing to do")
+        return
+
     if job and job['job_id']:
         logging.info(f"Job with job id {job_id} has already been submitted, checking status...")
         # If so, check the state of the job and notify the server of it's current state
@@ -65,11 +70,13 @@ async def submit_job(con, msg):
     details['job_id'] = job_id
 
     # Create a new job object and save it
-    job = {'job_id': job_id, 'scheduler_id': None, 'status': {}, 'bundle_hash': bundle_hash}
+    job = {'job_id': job_id, 'scheduler_id': None, 'status': {}, 'bundle_hash': bundle_hash, 'submit_lock': True}
+    await update_job(job)
 
     # Run the bundle.py submit
     scheduler_id = await run_bundle("submit", bundle_path, bundle_hash, details, params)
 
+    job['submit_lock'] = False
     await update_job(job)
 
     # Check if there was an issue with the job

@@ -57,7 +57,7 @@ class JobController:
             scheduler.cancel()
 
             # wait a few seconds then check the status of the job again
-            await sleep(5)
+            await sleep(60)
 
             # Check the job status in case it was cancelled immediately
             await self.check_job_status(job, True)

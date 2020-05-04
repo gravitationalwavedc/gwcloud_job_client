@@ -27,6 +27,11 @@ async def check_job_status(con, job, force_notification=False):
     if not job['job_id']:
         return
 
+    # If the job is still waiting to be submitted - there is nothing more to do
+    if 'submit_lock' in job and job['submit_lock']:
+        logging.info(f"Job with {job['job_id']} is being submitted, nothing to do")
+        return
+
     # Get the bundle path
     bundle_path = get_bundle_path()
 
@@ -112,4 +117,4 @@ async def check_job_status_thread(con):
     """
     while True:
         await check_all_jobs(con)
-        await sleep(5)
+        await sleep(60)

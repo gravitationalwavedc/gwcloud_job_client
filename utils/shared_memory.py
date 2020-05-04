@@ -150,6 +150,7 @@ class SharedMemory:
     def close(self):
         """Closes access to the shared memory from this instance but does
         not destroy the shared memory block."""
+        # Weird bug where os is deleted before it's used here
         if self._buf is not None:
             self._buf.release()
             self._buf = None

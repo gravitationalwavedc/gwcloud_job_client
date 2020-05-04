@@ -57,6 +57,7 @@ import bundle
 result = bundle.{bundle_function}(data['details'], data['job_data'])
 
 print(json.dumps(result))
+shm.close()
     """
 
     return source
