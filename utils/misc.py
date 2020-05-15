@@ -1,14 +1,62 @@
-import importlib
+import asyncio
 import inspect
 import json
 import logging
 import os
-import asyncio
+from functools import wraps
 from subprocess import list2cmdline
-import pickle
+
+from asgiref.sync import sync_to_async as _sync_to_async
 
 from settings import settings
 from utils import shared_memory
+
+
+"""Code taken from https://github.com/django/asgiref/issues/142 for async iterators"""
+def sync_to_async(sync_fn):
+    is_gen = inspect.isgeneratorfunction(sync_fn)
+    async_fn = _sync_to_async(sync_fn)
+
+    if is_gen:
+
+        @wraps(sync_fn)
+        async def wrapper(*args, **kwargs):
+            sync_iterable = await async_fn(*args, **kwargs)
+            sync_iterator = await iter_async(sync_iterable)
+
+            while True:
+                try:
+                    yield await next_async(sync_iterator)
+                except StopAsyncIteration:
+                    return
+
+    else:
+
+        @wraps(sync_fn)
+        async def wrapper(*args, **kwargs):
+            return await async_fn(*args, **kwargs)
+
+    return wrapper
+
+
+iter_async = sync_to_async(iter)
+
+
+@sync_to_async
+def next_async(it):
+    try:
+        return next(it)
+    except StopIteration:
+        raise StopAsyncIteration
+
+
+async def sync_to_async_iterable(sync_iterable):
+    sync_iterator = await iter_async(sync_iterable)
+    while True:
+        try:
+            yield await next_async(sync_iterator)
+        except StopAsyncIteration:
+            return
 
 
 def get_default_details():
@@ -94,7 +142,8 @@ async def run_bundle(bundle_function, bundle_path, bundle_hash, details, job_dat
     source = get_bundle_loader_source(bundle_function, shm.name)
 
     # Attempt to call the function from the bundle after sourcing the venv
-    args = list2cmdline(['.', os.path.join(bundle_path, bundle_hash, 'venv', 'bin', 'activate'), ";", os.path.join(bundle_path, bundle_hash, 'venv', 'bin', 'python'), '-c', source])
+    args = list2cmdline(['.', os.path.join(bundle_path, bundle_hash, 'venv', 'bin', 'activate'), ";",
+                         os.path.join(bundle_path, bundle_hash, 'venv', 'bin', 'python'), '-c', source])
     p = await asyncio.create_subprocess_shell(
         args,
         stdout=asyncio.subprocess.PIPE,

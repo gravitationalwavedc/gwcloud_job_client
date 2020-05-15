@@ -5,6 +5,10 @@ import signal
 import sys
 import traceback
 
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'db.db.settings')
+import django
+django.setup()
+
 from core.connection import JobController
 from settings import settings
 from utils.daemon import Daemon
