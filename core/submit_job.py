@@ -23,28 +23,29 @@ async def submit_job(con, msg):
 
     bundle_path = get_bundle_path()
 
-    # Check if this job has already been submitted
-    search = await sync_to_async(Job.objects.filter)(job_id=job_id)
-    if await sync_to_async(search.exists)():
-        job = await sync_to_async(search.first)()
-    else:
-        job = Job()
-
-    # If the job is still waiting to be submitted - there is nothing more to do
-    if job.submitting:
-        logging.info(f"Job with {job_id} is being submitted, nothing to do")
-        return
-
-    if job.job_id:
-        logging.info(f"Job with job id {job_id} has already been submitted, checking status...")
-        # If so, check the state of the job and notify the server of it's current state
-        await check_job_status(con, job, True)
-        return
-
-    logging.info("Attempting to submit new job with UI ID: {}".format(job_id))
-
-    # Synchronise the bundle fetch if needed
+    # The following fragment of code is a critical section, so we exclude access to any more than one thread. Without
+    # this, it's possible that more than one job is entered in the database with the same job id
     async with lock:
+        # Check if this job has already been submitted
+        search = await sync_to_async(Job.objects.filter)(job_id=job_id)
+        if await sync_to_async(search.exists)():
+            job = await sync_to_async(search.first)()
+        else:
+            job = Job()
+
+        # If the job is still waiting to be submitted - there is nothing more to do
+        if job.submitting:
+            logging.info(f"Job with {job_id} is being submitted, nothing to do")
+            return
+
+        if job.job_id:
+            logging.info(f"Job with job id {job_id} has already been submitted, checking status...")
+            # If so, check the state of the job and notify the server of it's current state
+            await check_job_status(con, job, True)
+            return
+
+        logging.info("Attempting to submit new job with UI ID: {}".format(job_id))
+
         # Check if the bundle exists or not
         if not os.path.exists(os.path.join(bundle_path, bundle_hash)):
             # The bundle does not exist, check if it's queued for delivery
@@ -69,19 +70,21 @@ async def submit_job(con, msg):
             # Nothing more to do for now
             return
 
-    # Submit the job and record that we have submitted the job
-    logging.info(f"Submitting new job with ui id {job_id}")
+        # Submit the job and record that we have submitted the job
+        logging.info(f"Submitting new job with ui id {job_id}")
 
-    # Create a dict to store the data for this job
-    details = get_default_details()
-    details['job_id'] = job_id
+        # Create a dict to store the data for this job
+        details = get_default_details()
+        details['job_id'] = job_id
 
-    # Create a new job object and save it
-    job.job_id = job_id
-    job.bundle_hash = bundle_hash
-    job.submitting = True
-    job.working_directory = ''
-    await sync_to_async(job.save)()
+        # Create a new job object and save it
+        job.job_id = job_id
+        job.bundle_hash = bundle_hash
+        job.submitting = True
+        job.working_directory = ''
+        await sync_to_async(job.save)()
+
+    # The job is guarenteed to be in the database now, so we can finish the critical section
 
     # Get the working directory
     working_directory = await run_bundle("working_directory", bundle_path, bundle_hash, details, "")
