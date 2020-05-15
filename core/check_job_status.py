@@ -9,6 +9,7 @@ from asgiref.sync import sync_to_async
 from core.messaging.message import Message
 from core.messaging.message_ids import UPDATE_JOB
 from db.db.models import Job, JobStatusModel
+from utils.archive_job import archive_job
 from utils.status import JobStatus
 from utils.misc import run_bundle, get_bundle_path, get_default_details, sync_to_async_iterable
 from utils.packet_scheduler import PacketScheduler
@@ -127,4 +128,9 @@ async def check_job_status_thread(con):
     """
     while True:
         await check_all_jobs(con)
+
+        # Clean up connections
+        from django.db import connection
+        sync_to_async(connection.close)()
+
         await sleep(60)
