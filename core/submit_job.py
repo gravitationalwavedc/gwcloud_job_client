@@ -114,6 +114,15 @@ async def submit_job(con, msg):
         result.push_string("Unable to submit job. Please check the logs as to why.")
         # Send the result
         await con.scheduler.queue_message(result)
+
+        # Notify the server that the job is failed
+        result = Message(UPDATE_JOB, source=str(job_id), priority=PacketScheduler.Priority.Medium)
+        result.push_uint(job_id)
+        result.push_string("_job_completion_")
+        result.push_uint(JobStatus.ERROR)
+        result.push_string("Unable to submit job. Please check the logs as to why.")
+        # Send the result
+        await con.scheduler.queue_message(result)
     else:
         # Update and save the job
         job.scheduler_id = scheduler_id

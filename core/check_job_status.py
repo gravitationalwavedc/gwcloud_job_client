@@ -79,7 +79,7 @@ async def check_job_status(con, job, force_notification=False):
     async for state in sync_to_async_iterable(job.status.all()):
         # Check if any of the jobs are in error state
         if state.state > JobStatus.RUNNING and state.state != JobStatus.COMPLETED:
-            job_error = True
+            job_error = state.state
 
     job_complete = True
     async for state in sync_to_async_iterable(job.status.all()):
@@ -94,6 +94,15 @@ async def check_job_status(con, job, force_notification=False):
 
         # Tar up the job
         await archive_job(job)
+
+        # Notify the server that the job has completed
+        result = Message(UPDATE_JOB, source=str(job.job_id), priority=PacketScheduler.Priority.Medium)
+        result.push_uint(job.job_id)
+        result.push_string("_job_completion_")
+        result.push_uint(job_error if job_error else JobStatus.COMPLETED)
+        result.push_string("Job has completed")
+        # Send the result
+        await con.scheduler.queue_message(result)
 
 
 async def check_all_jobs(con):
