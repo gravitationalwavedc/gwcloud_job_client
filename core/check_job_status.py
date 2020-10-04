@@ -140,6 +140,6 @@ async def check_job_status_thread(con):
 
         # Clean up connections
         from django.db import connection
-        sync_to_async(connection.close)()
+        await sync_to_async(connection.close)()
 
         await sleep(60)
