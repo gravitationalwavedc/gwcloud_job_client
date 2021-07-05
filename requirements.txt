@@ -4,8 +4,17 @@
 #
 #    pip-compile requirements.in
 #
-asgiref==3.2.7            # via django
-django==3.0.6             # via -r requirements.in
-pytz==2020.1              # via django
-sqlparse==0.3.1           # via django
-websockets==8.1           # via -r requirements.in
+aiounittest==1.4.0
+    # via -r requirements.in
+asgiref==3.3.4
+    # via django
+django==3.2.2
+    # via -r requirements.in
+pytz==2021.1
+    # via django
+sqlparse==0.4.1
+    # via django
+websockets==9.0.1
+    # via -r requirements.in
+wrapt==1.12.1
+    # via aiounittest

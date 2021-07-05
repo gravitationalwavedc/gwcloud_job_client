@@ -49,7 +49,8 @@ async def submit_job(con, msg):
         # Check if the bundle exists or not
         if not os.path.exists(os.path.join(bundle_path, bundle_hash)):
             # The bundle does not exist, check if it's queued for delivery
-            if not await sync_to_async(await sync_to_async(Job.objects.filter)(bundle_hash=bundle_hash, queued=True).exists)():
+            if not await sync_to_async(
+                    await sync_to_async(Job.objects.filter)(bundle_hash=bundle_hash, queued=True).exists)():
                 logging.info(f"Requesting bundle {bundle_hash} from the server for job {job_id}")
 
                 # Request the bundle from the server

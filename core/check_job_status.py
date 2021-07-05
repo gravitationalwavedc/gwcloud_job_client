@@ -10,9 +10,9 @@ from core.messaging.message import Message
 from core.messaging.message_ids import UPDATE_JOB
 from db.db.models import Job, JobStatusModel
 from utils.archive_job import archive_job
-from utils.status import JobStatus
 from utils.misc import run_bundle, get_bundle_path, get_default_details, sync_to_async_iterable
 from utils.packet_scheduler import PacketScheduler
+from utils.status import JobStatus
 
 
 async def check_job_status(con, job, force_notification=False):
@@ -107,7 +107,8 @@ async def check_job_status(con, job, force_notification=False):
 
 async def check_all_jobs(con):
     try:
-        jobs = await sync_to_async(Job.objects.filter)(running=True, queued=False, job_id__isnull=False, submitting=False)
+        jobs = await sync_to_async(Job.objects.filter)(running=True, queued=False, job_id__isnull=False,
+                                                       submitting=False)
         logging.info("Jobs {}".format(str(await sync_to_async(jobs.__repr__)())))
 
         futures = []

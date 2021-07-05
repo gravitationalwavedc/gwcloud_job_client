@@ -1,5 +1,4 @@
 import asyncio
-import logging
 
 
 class PacketScheduler:
@@ -13,14 +12,14 @@ class PacketScheduler:
 
         # Initialise the queue
         self.queue = []
-        for i in range(PacketScheduler.Priority.Lowest+1):
+        for i in range(PacketScheduler.Priority.Lowest + 1):
             self.queue.append({})
 
         # Create the access lock
         self.mutex = asyncio.Lock()
 
         # Create a message notification event
-        self.dataReady = asyncio.Event()
+        self.data_ready = asyncio.Event()
 
         # Start the prune thread
         asyncio.ensure_future(self.prune_sources())
@@ -32,21 +31,21 @@ class PacketScheduler:
         asyncio.ensure_future(self.run())
 
     async def queue_message(self, message):
-        with await self.mutex:
+        async with self.mutex:
             if message.source not in self.queue[message.priority]:
                 self.queue[message.priority][message.source] = asyncio.Queue()
 
             await self.queue[message.priority][message.source].put(message)
 
-        self.dataReady.set()
+        self.data_ready.set()
 
     async def run_next(self):
-        # Iterate over the priorities
+        # Iterate over the list of priorities
         for current_priority in range(len(self.queue)):
             while True:
                 had_data = False
-                with await self.mutex:
-                    # Iterate over the map
+                async with self.mutex:
+                    # Iterate over the source map
                     for k, v in self.queue[current_priority].items():
                         # Check if the vector for this source is empty
                         if not v.empty():
@@ -74,8 +73,8 @@ class PacketScheduler:
         # Iterate forever
         while True:
             # Wait for data to be ready to send
-            await self.dataReady.wait()
-            self.dataReady.clear()
+            await self.data_ready.wait()
+            self.data_ready.clear()
 
             await self.run_next()
 
@@ -86,7 +85,7 @@ class PacketScheduler:
             await asyncio.sleep(60)
 
             # Acquire the lock to prevent more data being pushed on while we are pruning
-            with await self.mutex:
+            async with self.mutex:
                 async def _next():
                     # Iterate over the priorities
                     for p in self.queue:

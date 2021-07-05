@@ -1,15 +1,11 @@
 import asyncio
 import logging
-import sys
-import traceback
-from asyncio import sleep
 
 import websockets
 
-from utils.status import JobStatus
 from settings import settings
 from utils.packet_scheduler import PacketScheduler
-from .check_job_status import check_job_status_thread, check_all_jobs
+from .check_job_status import check_job_status_thread
 from .handler import handle_message
 from .messaging.message import Message
 

@@ -3,18 +3,16 @@ import logging
 import os
 import sys
 import traceback
-from asyncio import sleep
 
 from asgiref.sync import sync_to_async
-from db.db.models import Job
 
 from core.messaging.message import Message
 from core.messaging.message_ids import FILE_ERROR, FILE_DETAILS, FILE_CHUNK, FILE_LIST_ERROR, FILE_LIST
-from utils.misc import run_bundle, get_bundle_path, get_default_details
+from db.db.models import Job
 from utils.packet_scheduler import PacketScheduler
 
 # Set the chunk size to 64kb for now
-CHUNK_SIZE = 1024*64
+CHUNK_SIZE = 1024 * 64
 
 paused_file_transfers = {}
 
@@ -68,7 +66,7 @@ async def download_file(con, msg):
         return
 
     # Verify that the path exists
-    if not os.path.exists(file_path):
+    if not await sync_to_async(os.path.exists)(file_path):
         logging.info(f"File does not exist {file_path}")
         # Report that the file doesn't exist
         result = Message(FILE_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
@@ -78,7 +76,7 @@ async def download_file(con, msg):
         return
 
     # Verify that the path is not a directory
-    if os.path.isdir(file_path):
+    if await sync_to_async(os.path.isdir)(file_path):
         logging.info(f"File to download is directory {file_path}")
         # Report that the file doesn't exist
         result = Message(FILE_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
@@ -91,7 +89,7 @@ async def download_file(con, msg):
     logging.info(f"Path {file_path}")
 
     # Get the file size
-    file_size = os.path.getsize(file_path)
+    file_size = await sync_to_async(os.path.getsize)(file_path)
 
     # Send the file size to the server
     result = Message(FILE_DETAILS, source=str(uuid), priority=PacketScheduler.Priority.Highest)
@@ -115,9 +113,9 @@ async def download_file(con, msg):
 
                 # Read the next chunk and send it to the server
                 if file_size > CHUNK_SIZE:
-                    data = file.read(CHUNK_SIZE)
+                    data = await sync_to_async(file.read)(CHUNK_SIZE)
                 else:
-                    data = file.read(file_size)
+                    data = await sync_to_async(file.read)(file_size)
 
                 # Since we don't want to flood the packet scheduler (So that we can give the server a chance to
                 # pause file transfers), we create an event that we wait for on every nth packet, and don't
@@ -126,7 +124,8 @@ async def download_file(con, msg):
                 event = asyncio.Event()
 
                 # Send the packet to the scheduler
-                result = Message(FILE_CHUNK, source=str(uuid), priority=PacketScheduler.Priority.Lowest, callback=lambda: event.set())
+                result = Message(FILE_CHUNK, source=str(uuid), priority=PacketScheduler.Priority.Lowest,
+                                 callback=lambda: event.set())
                 result.push_string(uuid)
                 result.push_bytes(data)
                 await con.scheduler.queue_message(result)
@@ -140,12 +139,12 @@ async def download_file(con, msg):
                 packet_count += 1
 
         logging.info(f"Finished file transfer for {uuid}")
-    except Exception as Exp:
+    except Exception as e:
         # An exception occurred, log the exception to the log
-        logging.error("Error in check job status")
-        logging.error(type(Exp))
-        logging.error(Exp.args)
-        logging.error(Exp)
+        logging.error("Error in file download")
+        logging.error(type(e))
+        logging.error(e.args)
+        logging.error(e)
 
         # Also log the stack trace
         exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -210,7 +209,7 @@ async def get_file_list(con, msg):
         return
 
     # Verify that the path exists
-    if not os.path.exists(dir_path):
+    if not await sync_to_async(os.path.exists)(dir_path):
         logging.info(f"Path to list files not exist {dir_path}")
         # Report that the file doesn't exist
         result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
@@ -220,7 +219,7 @@ async def get_file_list(con, msg):
         return
 
     # Verify that the path is not a directory
-    if not os.path.isdir(dir_path):
+    if not await sync_to_async(os.path.isdir)(dir_path):
         logging.info(f"Path to list files is not directory {dir_path}")
         # Report that the file doesn't exist
         result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
@@ -236,7 +235,7 @@ async def get_file_list(con, msg):
     file_list = []
     if is_recursive:
         # This is a recursive searh
-        for root, dirnames, filenames in os.walk(dir_path):
+        for root, dirnames, filenames in await sync_to_async(os.walk)(dir_path):
             # Iterate over the directories
             for item in dirnames:
                 # Construct the real path to this directory
@@ -246,7 +245,7 @@ async def get_file_list(con, msg):
                     # Remove the leading working directory
                     'path': real_file_name[len(working_directory):],
                     'is_dir': True,
-                    'size': os.path.getsize(real_file_name)
+                    'size': await sync_to_async(os.path.getsize)(real_file_name)
                 })
 
             for item in filenames:
@@ -258,13 +257,12 @@ async def get_file_list(con, msg):
                         # Remove the leading working directory
                         'path': real_file_name[len(working_directory):],
                         'is_dir': False,
-                        'size': os.path.getsize(real_file_name)
+                        'size': await sync_to_async(os.path.getsize)(real_file_name)
                     })
                 except FileNotFoundError:
                     # Happens when trying to stat a symlink
                     pass
     else:
-        logging.info("getting files...")
         # Not a recursive search
         for item in os.listdir(dir_path):
             logging.info(f"file {item}")
@@ -274,8 +272,8 @@ async def get_file_list(con, msg):
             file_list.append({
                 # Remove the leading slash
                 'path': real_file_name[len(working_directory):],
-                'is_dir': os.path.isdir(real_file_name),
-                'size': os.path.getsize(real_file_name),
+                'is_dir': await sync_to_async(os.path.isdir)(real_file_name),
+                'size': await sync_to_async(os.path.getsize)(real_file_name),
             })
 
     # Build the return message
@@ -286,5 +284,7 @@ async def get_file_list(con, msg):
         result.push_string(f['path'])
         result.push_bool(f['is_dir'])
         result.push_ulong(f['size'])
+
+    logging.info(f"File list for path {dir_path} completed.")
 
     await con.scheduler.queue_message(result)
