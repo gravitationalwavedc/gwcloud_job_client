@@ -11,6 +11,7 @@ class Job(models.Model):
     # If this job is waiting on a submit bundle function (Controller won't try to check job status or resubmit while
     # this flag is true)
     submitting = models.BooleanField(default=False)
+    submitting_count = models.IntegerField(default=0)
 
     # The bundle hash of this job
     bundle_hash = models.CharField(max_length=40)

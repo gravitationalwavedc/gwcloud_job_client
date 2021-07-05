@@ -45,6 +45,10 @@ async def check_job_status(con, job, force_notification=False):
 
         dbstatus = await sync_to_async(job.status.filter)(what=what)
 
+        # Prevent duplicates
+        if await sync_to_async(dbstatus.count)() > 1:
+            await sync_to_async(dbstatus.delete)()
+
         if force_notification \
                 or not await sync_to_async(dbstatus.exists)() \
                 or status != (await sync_to_async(dbstatus.first)()).state:
@@ -117,6 +121,7 @@ async def check_all_jobs(con):
 
         if len(futures):
             await asyncio.wait(futures)
+
     except Exception as Exp:
         # An exception occurred, log the exception to the log
         logging.error("Error in check job status")
@@ -139,8 +144,5 @@ async def check_job_status_thread(con):
     while True:
         await check_all_jobs(con)
 
-        # Clean up connections
-        from django.db import connection
-        await sync_to_async(connection.close)()
-
         await sleep(60)
+

@@ -35,8 +35,17 @@ async def submit_job(con, msg):
 
         # If the job is still waiting to be submitted - there is nothing more to do
         if job.submitting:
-            logging.info(f"Job with {job_id} is being submitted, nothing to do")
-            return
+            job.submitting_count += 1
+            if job.submitting_count >= 10:
+                logging.info(f"Job with {job_id} took too long to submit - assuming it's failed and trying again...")
+                job.submitting_count = 0
+                job.submitting = False
+                job.job_id = None
+                await sync_to_async(job.save)()
+            else:
+                await sync_to_async(job.save)()
+                logging.info(f"Job with {job_id} is being submitted, nothing to do")
+                return
 
         if job.job_id:
             logging.info(f"Job with job id {job_id} has already been submitted, checking status...")
