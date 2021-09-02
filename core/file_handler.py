@@ -178,7 +178,7 @@ async def get_file_list(con, msg):
         if job.submitting:
             logging.info(f"Job is submitting, nothing to do")
             # Report that the file doesn't exist
-            result = Message(FILE_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
+            result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
             result.push_string(uuid)
             result.push_string("Job is not submitted")
             await con.scheduler.queue_message(result)
@@ -186,7 +186,7 @@ async def get_file_list(con, msg):
     except:
         logging.info(f"Job does not exist {job_id}")
         # Report that the file doesn't exist
-        result = Message(FILE_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
+        result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
         result.push_string(uuid)
         result.push_string("Job does not exist")
         await con.scheduler.queue_message(result)
