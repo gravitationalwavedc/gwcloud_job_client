@@ -6,86 +6,6 @@ class Message:
     The Message class is an easy to use push/pop binary messaging framework that allows pushing and popping basic
     primitive types
     """
-    """ System message ids """
-    # Used internally to represent a success condition
-    # ...: Any arbitrary content may follow
-    RESULT_OK = 0
-
-    # Used internally to represent a failure condition
-    # string: Failure reason
-    RESULT_FAILURE = 1
-
-    # Used internally to check if a cluster is currently connected or not
-    # uint: The django db id of the cluster to check
-    IS_CLUSTER_ONLINE = 2
-
-    # Used internally to send a message over the django/websocket server unix domain socket
-    # string: The token representing the websocket connection to send the message over
-    # bytes: The message to send over the websocket
-    TRANSMIT_WEBSOCKET_MESSAGE = 3
-
-    # Used internally as a encapsulation around a guaranteed response message
-    # string: Result identifier
-    # bytes: The message to send over the websocket
-    TRANSMIT_ASSURED_RESPONSE_WEBSOCKET_MESSAGE = 4
-
-    # Used by the server to question if the client is still responding
-    HEARTBEAT_PING = 5
-
-    # Used by the client to respond to the servers ping request
-    HEARTBEAT_PONG = 6
-
-    # Used internally by the server to close the websocket connection
-    CLOSE_WEBSOCKET = 7
-
-    """ Job message ids """
-    # Submits a job on the remote client
-    # Server -> Client
-    # uint: The HpcJob id
-    # bytes: Any parameters to be sent to the job (this is a python pickle)
-
-    # Client -> Server
-    # uint: The HpcJob id
-    SUBMIT_JOB = 1000
-
-
-
-    # Sent by the server to cancel a job
-    # uint: The HpcJob id to cancel
-    CANCEL_JOB = 1002
-
-    # Sent by the server to delete a job
-    # uint: The HpcJob id to delete
-    DELETE_JOB = 1003
-
-    """ File message ids"""
-    # Creates a new file controller websocket connection for transmitting a file
-    # string: websocket token id
-    INITIATE_FILE_CONNECTION = 2000
-
-    # Sets the file that the remote file connection is to read
-    # uint: The ui of the id to fetch the file for. If this is specified then path is relative to the jobs working dir
-    # string: Path to file on remote machine. Relative to the jobs working directory if ui_id is set, else absolute path
-    # ulong: Size of each chunk to send
-    SET_FILE_CONNECTION_FILE_DETAILS = 2001
-
-    # Sends a file chunk to the server
-    # bytes: The data for this chunk - if the len is 0 then there are no more chunks
-    SEND_FILE_CHUNK = 2002
-
-    # Gets the list of files for a specific job
-    # Server -> Client
-    # uint: UI job id
-    # string: Relative path in output directory
-    # bool: Recursive
-
-    # Client -> Server
-    # uint: Number of files/folders
-        # string: Path (relative to job working directory)
-        # bool: Is folder
-        # ulong: File size if file
-    GET_FILE_TREE = 2003
-
     def __init__(self, msg_id=None, data=None, source=None, priority=None, callback=None):
         """
         Message constructor - creates a new message with the provided message id, or creates an existing message from
@@ -93,7 +13,11 @@ class Message:
 
         :param msg_id: The ID of the message if creating a new message (int32)
         :param data: The data of the message if creating a message from existing data (bytearray)
-        :return:
+        :param source: The string identifying the source for this message
+        :param priority: The PacketScheduler.Priority for this message
+        :param callback: The callback to be triggered by the scheduler once this packet has been sent
+
+        :return: None
         """
 
         # Verify that at least one of the data parameters were provided
@@ -222,7 +146,7 @@ class Message:
         :return: The short at the current message offset
         """
         self.offset += 2
-        return struct.unpack_from('H', self.data, self.offset - 2)[0]
+        return struct.unpack_from('h', self.data, self.offset - 2)[0]
 
     def push_uint(self, i):
         """
@@ -340,7 +264,6 @@ class Message:
         """
         # Get the length of the string
         string_len = self.pop_ulong()
-        print(string_len)
         # Iterate over each character and append it to the array
         result = ''
         for _ in range(string_len):
@@ -377,7 +300,7 @@ class Message:
 
     def to_bytes(self):
         """
-        Returs the data array
+        Returns the data array
         :return: The data array
         """
         # Convert the data to bytes and return it

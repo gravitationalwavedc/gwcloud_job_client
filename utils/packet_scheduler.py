@@ -22,13 +22,20 @@ class PacketScheduler:
         self.data_ready = asyncio.Event()
 
         # Start the prune thread
-        asyncio.ensure_future(self.prune_sources())
+        self.prune_thread = asyncio.ensure_future(self.prune_sources())
 
         self.scheduler_thread = None
 
-    def server_ready(self):
+    def start(self):
         # Start the scheduler thread
-        asyncio.ensure_future(self.run())
+        self.scheduler_thread = asyncio.ensure_future(self.run())
+
+    def stop(self):
+        self.prune_thread.cancel()
+
+        if self.scheduler_thread:
+            self.scheduler_thread.cancel()
+            self.scheduler_thread = None
 
     async def queue_message(self, message):
         async with self.mutex:

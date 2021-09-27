@@ -1,0 +1,16 @@
+{
+  "exclude": "(.*/migrations/)",
+  "linters": {
+    "pyflakes": {
+      "type": "pyflakes",
+      "include": "(\\.py$)"
+    },
+    "flake8": {
+      "type": "flake8",
+      "include": "(\\.py$)",
+      "flags": [
+         "--max-line-length=120"
+      ]
+    }
+  }
+}

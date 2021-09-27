@@ -1,3 +1,7 @@
 websockets
-django
+django<4
 aiounittest
+coverage
+pip-tools
+unittest-xml-reporting
+pytest

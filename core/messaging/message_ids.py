@@ -1,4 +1,4 @@
-# Send by the server when it has finished setting up the connection and is ready for messages
+# Sent by the server when it has finished setting up the connection and is ready for messages
 SERVER_READY = 1000
 
 # Submits a new job

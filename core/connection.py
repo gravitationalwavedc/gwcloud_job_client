@@ -1,5 +1,4 @@
 import asyncio
-import logging
 
 import websockets
 
@@ -30,66 +29,6 @@ class JobController:
 
         # Handle the message
         await handle_message(self, msg)
-
-        return
-
-        if msg_id == Message.CANCEL_JOB:
-            raise Exception("Not implemented")
-            # Get the ui id of the job
-            # ui_id = msg.pop_uint()
-            #
-            # # Get the job from the database
-            # job = Job.objects.get(ui_id=ui_id)
-            #
-            # # Verify that this job exists
-            # if not job:
-            #     logging.info("Attempt to cancel a job with UI ID {} That does not exist in the database.".format(ui_id))
-            #     return
-            #
-            # # Get the scheduler for this job
-            # scheduler = self.scheduler_klass(self.settings, job.ui_id, job.job_id)
-            #
-            # # Ask the scheduler to cancel the job
-            # scheduler.cancel()
-            #
-            # # wait a few seconds then check the status of the job again
-            # await sleep(60)
-            #
-            # # Check the job status in case it was cancelled immediately
-            # await self.check_job_status(job, True)
-
-        elif msg_id == Message.DELETE_JOB:
-            raise Exception("Not implemented")
-            # # Get the ui id of the job
-            # ui_id = msg.pop_uint()
-            #
-            # # Get the scheduler for this job
-            # scheduler = self.scheduler_klass(self.settings, ui_id, None)
-            #
-            # try:
-            #     # Ask the scheduler to delete the job data
-            #     scheduler.delete_data()
-            #
-            #     # Mark the job deleted
-            #     result = Message(Message.UPDATE_JOB)
-            #     result.push_uint(ui_id)
-            #     result.push_uint(JobStatus.DELETED)
-            #     result.push_string("All Job Data successfully deleted.")
-            #     await self.sock.send(result.to_bytes())
-            # except Exception as Exp:
-            #     # An exception occurred, log the exception to the log
-            #     logging.error("Error while deleting job data")
-            #     logging.error(type(Exp))
-            #     logging.error(Exp.args)
-            #     logging.error(Exp)
-            #
-            #     # Also log the stack trace
-            #     exc_type, exc_value, exc_traceback = sys.exc_info()
-            #     lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-            #     logging.error(''.join('!! ' + line for line in lines))
-
-        else:
-            logging.info("Got unknown message id {}".format(msg_id))
 
     async def send_handler(self):
         """
