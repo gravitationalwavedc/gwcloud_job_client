@@ -10,7 +10,8 @@ from core.messaging.message import Message
 from core.messaging.message_ids import UPDATE_JOB
 from db.db.models import Job, JobStatusModel
 from utils.archive_job import archive_job
-from utils.misc import run_bundle, get_bundle_path, get_default_details, sync_to_async_iterable
+from utils.misc import get_bundle_path, get_default_details, sync_to_async_iterable
+from utils.bundle.interface import run_bundle
 from utils.packet_scheduler import PacketScheduler
 from utils.status import JobStatus
 

@@ -5,3 +5,4 @@ coverage
 pip-tools
 unittest-xml-reporting
 pytest
+psutil
