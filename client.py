@@ -1,11 +1,10 @@
+import django
 import logging
 import logging.handlers
 import os
 import sys
 import traceback
-import django
 
-from core.connection import JobController
 from settings import settings
 from utils.daemon import Daemon
 
@@ -72,6 +71,7 @@ class JobControllerDaemon(Daemon):
         logging.info('Job Controller starting...')
 
         # Create the Job Controller
+        from core.connection import JobController
         self.controller = JobController(self.argv)
 
         try:

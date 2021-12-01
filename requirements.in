@@ -1,4 +1,4 @@
-websockets
+websockets<10
 django<4
 aiounittest
 coverage

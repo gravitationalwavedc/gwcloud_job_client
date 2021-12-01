@@ -2,15 +2,14 @@
 import asyncio
 import logging
 import os
-
 from asgiref.sync import sync_to_async
 
 from core.check_job_status import check_job_status
 from core.messaging.message import Message
 from core.messaging.message_ids import REQUEST_BUNDLE, UPDATE_JOB
 from db.db.models import Job
+from utils.bundle.interface import run_bundle
 from utils.misc import get_bundle_path, get_default_details
-from utils.bundle.bundle import run_bundle
 from utils.packet_scheduler import PacketScheduler
 from utils.status import JobStatus
 
