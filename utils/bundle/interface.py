@@ -1,11 +1,13 @@
 import asyncio
 import os
 import socket
+import tempfile
+import hashlib
 from subprocess import list2cmdline
 
 from utils.bundle.client import UnixStreamXMLRPCClient
 
-BUNDLE_SOCKET_NAME = "bundle.sock"
+BUNDLE_SOCKET_SUFFIX = ".sock"
 bundle_start_lock = asyncio.Lock()
 
 
@@ -13,7 +15,16 @@ def get_bundle_socket_path(bundle_path, bundle_hash):
     """
     Returns the path to the bundle socket for the specified bundle hash
     """
-    return os.path.join(bundle_path, bundle_hash, BUNDLE_SOCKET_NAME)
+    # Generate the SHA-1 of the bundle and hash to generate a unique filename
+    bundle_socket_hash = hashlib.sha1((bundle_path + bundle_hash).encode('utf-8'))
+
+    path = os.path.join(tempfile.gettempdir(), bundle_socket_hash.hexdigest() + BUNDLE_SOCKET_SUFFIX)
+
+    # Make absolutely sure that the unix domain socket path is less than 108 chars
+    # see https://man7.org/linux/man-pages/man7/unix.7.html
+    assert len(path) < 108
+
+    return path
 
 
 async def check_or_start_bundle_server(bundle_path, bundle_hash):
@@ -40,9 +51,9 @@ async def check_or_start_bundle_server(bundle_path, bundle_hash):
         # Get the path to the server file
         server_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'server.py')
 
-        # Activate the virtual environment then run the server
+        # Activate the virtual environment then run the server passing the path to the socket
         args = list2cmdline(['.', os.path.join(working_directory, 'venv', 'bin', 'activate'), ";",
-                             'python', server_file])
+                             'python', server_file, sock_path])
 
         p = await asyncio.create_subprocess_shell(
             args,

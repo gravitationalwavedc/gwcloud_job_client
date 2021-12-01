@@ -4,6 +4,7 @@ Adapted from https://gist.github.com/grantjenks/095de18c51fa8f118b68be80a624c45a
 import importlib
 import os
 import socketserver
+import stat
 import sys
 from types import ModuleType
 
@@ -27,6 +28,7 @@ class UnixStreamXMLRPCServer(socketserver.UnixStreamServer, SimpleXMLRPCDispatch
 
         SimpleXMLRPCDispatcher.__init__(self, allow_none, encoding, use_builtin_types)
         socketserver.UnixStreamServer.__init__(self, addr, UnixStreamXMLRPCRequestHandler, bind_and_activate)
+        os.chmod(addr, stat.S_IRUSR | stat.S_IWUSR)
 
 
 # Adapted from https://stackoverflow.com/a/58201660
@@ -105,7 +107,7 @@ def delete(details, job_data):
 
 
 # Create the RPC server
-server = UnixStreamXMLRPCServer("./bundle.sock")
+server = UnixStreamXMLRPCServer(sys.argv[1])
 
 # Register the functions
 server.register_function(working_directory)
