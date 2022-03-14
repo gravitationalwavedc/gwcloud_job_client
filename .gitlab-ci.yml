@@ -13,6 +13,7 @@ default:
 python-tests:
   stage: test
   script:
+    - python3 -m venv ./utils/bundle/tests/test_bundle/venv/
     - pip3 install -r requirements.txt
     - coverage run -m xmlrunner discover --output-file ./junit.xml
     - coverage xml
