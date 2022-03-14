@@ -1,8 +1,11 @@
 import asyncio
+import logging
 import os
 import socket
+import sys
 import tempfile
 import hashlib
+import traceback
 from subprocess import list2cmdline
 
 from utils.bundle.client import UnixStreamXMLRPCClient
@@ -103,5 +106,19 @@ async def run_bundle(bundle_function, bundle_path, bundle_hash, details, job_dat
     # Get a client connection to the bundle server
     client = UnixStreamXMLRPCClient(get_bundle_socket_path(bundle_path, bundle_hash))
 
-    # Make the RPC and return teh result
-    return getattr(client, bundle_function)(details, job_data)
+    # Make the RPC and return the result
+    try:
+        return getattr(client, bundle_function)(details, job_data)
+    except Exception as e:
+        # An exception occurred, log it
+        logging.error(f"Error running bundle function {bundle_function}")
+        logging.error(type(e))
+        logging.error(e.args)
+        logging.error(e)
+
+        # Also log the stack trace
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+        logging.error(''.join('!! ' + line for line in lines))
+
+        raise e

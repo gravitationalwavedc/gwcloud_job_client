@@ -107,3 +107,7 @@ def working_directory(details, job_data):
 
         result = await run_bundle('working_directory', self.cwd, 'test_bundle', {}, {})
         self.assertEqual(result, "module_reloading_works2")
+
+    async def test_bundle_exception(self):
+        with self.assertRaises(Exception):
+            await run_bundle('not_a_real_function', self.cwd, 'test_bundle', {}, {})
