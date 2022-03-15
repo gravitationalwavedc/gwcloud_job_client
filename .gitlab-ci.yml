@@ -15,6 +15,11 @@ python-tests:
   script:
     - python3 -m venv ./utils/bundle/tests/test_bundle/venv/
     - pip3 install -r requirements.txt
+    - ls -la /builds/CAS-eResearch/GWDC/code/gwcloud_job_client/utils/bundle/
+    - ls -la /builds/CAS-eResearch/GWDC/code/gwcloud_job_client/utils/bundle/tests/
+    - ls -la /builds/CAS-eResearch/GWDC/code/gwcloud_job_client/utils/bundle/tests/test_bundle/
+    - ls -la /builds/CAS-eResearch/GWDC/code/gwcloud_job_client/utils/bundle/tests/test_bundle/venv/
+    - ls -la /builds/CAS-eResearch/GWDC/code/gwcloud_job_client/utils/bundle/tests/test_bundle/venv/bin/
     - coverage run -m xmlrunner discover --output-file ./junit.xml
     - coverage xml
 
