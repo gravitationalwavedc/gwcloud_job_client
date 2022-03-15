@@ -6,3 +6,4 @@ pip-tools
 unittest-xml-reporting
 pytest
 psutil
+flake8
