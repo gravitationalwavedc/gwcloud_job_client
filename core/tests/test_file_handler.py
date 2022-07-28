@@ -59,6 +59,10 @@ class TestFileHandler(TransactionTestCase):
             f.write(self.file_data)
             f.flush()
 
+    def tearDown(self) -> None:
+        self.temp_file.close()
+        self.temp_dir.cleanup()
+
     async def test_download_file_job_not_exist(self):
         self.msg.push_int(self.job.job_id + 1000)
         self.msg.push_string('some_uuid')
