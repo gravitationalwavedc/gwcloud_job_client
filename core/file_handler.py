@@ -206,36 +206,36 @@ async def get_file_list(con, msg):
         bundle_path = get_bundle_path()
         working_directory = await run_bundle("working_directory", bundle_path, bundle_hash, dir_path, "file_list")
 
-    # Get the absolute path to the file
+    # Get the absolute path to the directory
     dir_path = os.path.abspath(os.path.join(working_directory, dir_path))
 
-    # Verify that this file really sits under the working directory
+    # Verify that this directory really sits under the working directory
     if not dir_path.startswith(working_directory):
         logging.info(f"Path to list files is outside the working directory {dir_path}")
         # Report that the file doesn't exist
         result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
         result.push_string(uuid)
-        result.push_string("File does not exist")
+        result.push_string("Path does not exist")
         await con.scheduler.queue_message(result)
         return
 
-    # Verify that the path exists
+    # Verify that the directory exists
     if not await sync_to_async(os.path.exists)(dir_path):
         logging.info(f"Path to list files not exist {dir_path}")
         # Report that the file doesn't exist
         result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
         result.push_string(uuid)
-        result.push_string("File does not exist")
+        result.push_string("Path does not exist")
         await con.scheduler.queue_message(result)
         return
 
-    # Verify that the path is not a directory
+    # Verify that the path is a directory
     if not await sync_to_async(os.path.isdir)(dir_path):
         logging.info(f"Path to list files is not directory {dir_path}")
         # Report that the file doesn't exist
         result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
         result.push_string(uuid)
-        result.push_string("File does not exist")
+        result.push_string("Path does not exist")
         await con.scheduler.queue_message(result)
         return
 
