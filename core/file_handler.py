@@ -32,14 +32,14 @@ async def download_file(con, msg):
             job = await sync_to_async(Job.objects.get)(job_id=job_id)
 
             if job.submitting:
-                logging.info(f"Job is submitting, nothing to do")
+                logging.info(f"Job {job_id} is submitting, nothing to do")
                 # Report that the file doesn't exist
                 result = Message(FILE_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
                 result.push_string(uuid)
                 result.push_string("Job is not submitted")
                 await con.scheduler.queue_message(result)
                 return
-        except:
+        except Job.DoesNotExist:
             logging.info(f"Job does not exist {job_id}")
             # Report that the file doesn't exist
             result = Message(FILE_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
@@ -115,7 +115,7 @@ async def download_file(con, msg):
                 try:
                     if uuid in paused_file_transfers:
                         await paused_file_transfers[uuid].wait()
-                except:
+                except KeyError:
                     pass
 
                 # Read the next chunk and send it to the server
@@ -184,14 +184,14 @@ async def get_file_list(con, msg):
             job = await sync_to_async(Job.objects.get)(job_id=job_id)
 
             if job.submitting:
-                logging.info(f"Job is submitting, nothing to do")
+                logging.info(f"Job {job_id} is submitting, nothing to do")
                 # Report that the file doesn't exist
                 result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
                 result.push_string(uuid)
                 result.push_string("Job is not submitted")
                 await con.scheduler.queue_message(result)
                 return
-        except:
+        except Job.DoesNotExist:
             logging.info(f"Job does not exist {job_id}")
             # Report that the file doesn't exist
             result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
