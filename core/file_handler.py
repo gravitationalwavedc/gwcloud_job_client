@@ -9,6 +9,8 @@ from asgiref.sync import sync_to_async
 from core.messaging.message import Message
 from core.messaging.message_ids import FILE_ERROR, FILE_DETAILS, FILE_CHUNK, FILE_LIST_ERROR, FILE_LIST
 from db.db.models import Job
+from utils.bundle.interface import run_bundle
+from utils.misc import get_bundle_path
 from utils.packet_scheduler import PacketScheduler
 
 # Set the chunk size to 64kb for now
@@ -24,29 +26,34 @@ async def download_file(con, msg):
     bundle_hash = msg.pop_string()
     file_path = msg.pop_string()
 
-    try:
-        # Get the job
-        job = await sync_to_async(Job.objects.get)(job_id=job_id)
+    if job_id:
+        try:
+            # Get the job
+            job = await sync_to_async(Job.objects.get)(job_id=job_id)
 
-        if job.submitting:
-            logging.info(f"Job is submitting, nothing to do")
+            if job.submitting:
+                logging.info(f"Job {job_id} is submitting, nothing to do")
+                # Report that the file doesn't exist
+                result = Message(FILE_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
+                result.push_string(uuid)
+                result.push_string("Job is not submitted")
+                await con.scheduler.queue_message(result)
+                return
+        except Job.DoesNotExist:
+            logging.info(f"Job does not exist {job_id}")
             # Report that the file doesn't exist
             result = Message(FILE_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
             result.push_string(uuid)
-            result.push_string("Job is not submitted")
+            result.push_string("Job does not exist")
             await con.scheduler.queue_message(result)
             return
-    except:
-        logging.info(f"Job does not exist {job_id}")
-        # Report that the file doesn't exist
-        result = Message(FILE_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
-        result.push_string(uuid)
-        result.push_string("Job does not exist")
-        await con.scheduler.queue_message(result)
-        return
 
-    # Get the working directory
-    working_directory = job.working_directory
+        # Get the working directory
+        working_directory = job.working_directory
+    else:
+        # If a job id is not provided, then the working directory from the bundle should be used
+        bundle_path = get_bundle_path()
+        working_directory = await run_bundle("working_directory", bundle_path, bundle_hash, file_path, "file_download")
 
     # Make sure that there is no leading slash on the file path
     while len(file_path) and file_path[0] == '/':
@@ -108,7 +115,7 @@ async def download_file(con, msg):
                 try:
                     if uuid in paused_file_transfers:
                         await paused_file_transfers[uuid].wait()
-                except:
+                except KeyError:
                     pass
 
                 # Read the next chunk and send it to the server
@@ -171,60 +178,64 @@ async def get_file_list(con, msg):
     dir_path = msg.pop_string()
     is_recursive = msg.pop_bool()
 
-    try:
-        # Get the job
-        job = await sync_to_async(Job.objects.get)(job_id=job_id)
+    if job_id:
+        try:
+            # Get the job
+            job = await sync_to_async(Job.objects.get)(job_id=job_id)
 
-        if job.submitting:
-            logging.info(f"Job is submitting, nothing to do")
+            if job.submitting:
+                logging.info(f"Job {job_id} is submitting, nothing to do")
+                # Report that the file doesn't exist
+                result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
+                result.push_string(uuid)
+                result.push_string("Job is not submitted")
+                await con.scheduler.queue_message(result)
+                return
+        except Job.DoesNotExist:
+            logging.info(f"Job does not exist {job_id}")
             # Report that the file doesn't exist
             result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
             result.push_string(uuid)
-            result.push_string("Job is not submitted")
+            result.push_string("Job does not exist")
             await con.scheduler.queue_message(result)
             return
-    except:
-        logging.info(f"Job does not exist {job_id}")
-        # Report that the file doesn't exist
-        result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
-        result.push_string(uuid)
-        result.push_string("Job does not exist")
-        await con.scheduler.queue_message(result)
-        return
 
-    # Get the working directory
-    working_directory = job.working_directory
+        # Get the working directory
+        working_directory = job.working_directory
+    else:
+        bundle_path = get_bundle_path()
+        working_directory = await run_bundle("working_directory", bundle_path, bundle_hash, dir_path, "file_list")
 
-    # Get the absolute path to the file
+    # Get the absolute path to the directory
     dir_path = os.path.abspath(os.path.join(working_directory, dir_path))
 
-    # Verify that this file really sits under the working directory
+    # Verify that this directory really sits under the working directory
     if not dir_path.startswith(working_directory):
         logging.info(f"Path to list files is outside the working directory {dir_path}")
         # Report that the file doesn't exist
         result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
         result.push_string(uuid)
-        result.push_string("File does not exist")
+        result.push_string("Path does not exist")
         await con.scheduler.queue_message(result)
         return
 
-    # Verify that the path exists
+    # Verify that the directory exists
     if not await sync_to_async(os.path.exists)(dir_path):
         logging.info(f"Path to list files not exist {dir_path}")
         # Report that the file doesn't exist
         result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
         result.push_string(uuid)
-        result.push_string("File does not exist")
+        result.push_string("Path does not exist")
         await con.scheduler.queue_message(result)
         return
 
-    # Verify that the path is not a directory
+    # Verify that the path is a directory
     if not await sync_to_async(os.path.isdir)(dir_path):
         logging.info(f"Path to list files is not directory {dir_path}")
         # Report that the file doesn't exist
         result = Message(FILE_LIST_ERROR, source=str(uuid), priority=PacketScheduler.Priority.Highest)
         result.push_string(uuid)
-        result.push_string("File does not exist")
+        result.push_string("Path does not exist")
         await con.scheduler.queue_message(result)
         return
 
