@@ -1,6 +1,7 @@
 import asyncio
 
 import websockets
+import websockets.exceptions
 
 from settings import settings
 from utils.packet_scheduler import PacketScheduler
@@ -36,12 +37,18 @@ class JobController:
 
         :return: Nothing
         """
-        # Automatically handles sending messages added to the queue
-        while True:
-            # Wait for a message from the queue
-            message = await self.queue.get()
-            # Send the message
-            await self.sock.send(message)
+        try:
+            # Automatically handles sending messages added to the queue
+            while True:
+                # Wait for a message from the queue
+                message = await self.queue.get()
+                # Send the message
+                await self.sock.send(message)
+        except websockets.exceptions.ConnectionClosedOK:
+            # Nothing to do, the websocket has been closed naturally
+            pass
+        except Exception:
+            raise
 
     async def recv_handler(self):
         """
@@ -49,12 +56,18 @@ class JobController:
 
         :return: Nothing
         """
-        # Loop forever
-        while True:
-            # Wait for a message to arrive on the websocket
-            message = await self.sock.recv()
-            # Handle the message
-            await self.handle_message(message)
+        try:
+            # Loop forever
+            while True:
+                # Wait for a message to arrive on the websocket
+                message = await self.sock.recv()
+                # Handle the message
+                await self.handle_message(message)
+        except websockets.exceptions.ConnectionClosedOK:
+            # Nothing to do, the websocket has been closed naturally
+            pass
+        except Exception:
+            raise
 
     async def run(self):
         """
@@ -63,7 +76,11 @@ class JobController:
         """
 
         self.sock = await websockets.connect(
-            '{}?token={}'.format(settings.HPC_WEBSOCKET_SERVER, self.argv[1]))
+            '{}?token={}'.format(settings.HPC_WEBSOCKET_SERVER, self.argv[1]),
+            ping_interval=10,
+            ping_timeout=10,
+            close_timeout=1
+        )
 
         self.scheduler = PacketScheduler(self.sock)
 
@@ -76,7 +93,7 @@ class JobController:
 
         # Wait for one of the tasks to finish
         done, pending = await asyncio.wait(
-            [consumer_task, producer_task],
+            [consumer_task, producer_task, self.sock.wait_closed],
             return_when=asyncio.FIRST_COMPLETED,
         )
 
