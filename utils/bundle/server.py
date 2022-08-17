@@ -1,6 +1,8 @@
 """
 Adapted from https://gist.github.com/grantjenks/095de18c51fa8f118b68be80a624c45a
 """
+import asyncio
+import concurrent.futures
 import importlib
 import os
 import sys
@@ -11,6 +13,10 @@ import aiohttp_xmlrpc.handler
 
 # Make sure the current working directory is added to the python path so the bundle can be found
 sys.path.append(os.getcwd())
+
+executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=100,
+)
 
 
 # Adapted from https://stackoverflow.com/a/58201660
@@ -49,40 +55,65 @@ def rreload(module, mdict=None, base_module=None):
 
 
 class XMLRPCServer(aiohttp_xmlrpc.handler.XMLRPCView):
-    def rpc_working_directory(self, details, job_data):
+    async def rpc_working_directory(self, details, job_data):
         import bundle
 
         rreload(bundle)
 
-        return bundle.working_directory(details, job_data)
+        blocking_tasks = [
+            asyncio.get_event_loop().run_in_executor(executor, bundle.working_directory, details, job_data)
+        ]
 
-    def rpc_submit(self, details, job_data):
+        completed, _ = await asyncio.wait(blocking_tasks)
+        return list(completed)[0].result()
+
+    async def rpc_submit(self, details, job_data):
         import bundle
 
         rreload(bundle)
 
-        return bundle.submit(details, job_data)
+        blocking_tasks = [
+            asyncio.get_event_loop().run_in_executor(executor, bundle.submit, details, job_data)
+        ]
 
-    def rpc_status(self, details, job_data):
+        completed, _ = await asyncio.wait(blocking_tasks)
+        return list(completed)[0].result()
+
+    async def rpc_status(self, details, job_data):
         import bundle
 
         rreload(bundle)
 
-        return bundle.status(details, job_data)
+        blocking_tasks = [
+            asyncio.get_event_loop().run_in_executor(executor, bundle.status, details, job_data)
+        ]
 
-    def rpc_cancel(self, details, job_data):
+        completed, _ = await asyncio.wait(blocking_tasks)
+        return list(completed)[0].result()
+
+    async def rpc_cancel(self, details, job_data):
         import bundle
 
         rreload(bundle)
 
-        return bundle.cancel(details, job_data)
+        blocking_tasks = [
+            asyncio.get_event_loop().run_in_executor(executor, bundle.cancel, details, job_data)
+        ]
 
-    def rpc_delete(self, details, job_data):
+        completed, _ = await asyncio.wait(blocking_tasks)
+        return list(completed)[0].result()
+
+    async def rpc_delete(self, details, job_data):
         import bundle
 
         rreload(bundle)
 
-        return bundle.delete(details, job_data)
+        blocking_tasks = [
+            asyncio.get_event_loop().run_in_executor(executor, bundle.delete, details, job_data)
+        ]
+
+        completed, _ = await asyncio.wait(blocking_tasks)
+        return list(completed)[0].result()
 
 
 # Create the RPC server
