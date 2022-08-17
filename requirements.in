@@ -7,3 +7,4 @@ unittest-xml-reporting
 pytest
 psutil
 flake8
+aiohttp_xmlrpc

@@ -1,14 +1,15 @@
 import asyncio
+import hashlib
 import logging
 import os
 import socket
 import sys
 import tempfile
-import hashlib
 import traceback
 from subprocess import list2cmdline
 
-from utils.bundle.client import UnixStreamXMLRPCClient
+import aiohttp
+import aiohttp_xmlrpc.client
 
 BUNDLE_SOCKET_SUFFIX = ".sock"
 bundle_start_lock = asyncio.Lock()
@@ -104,11 +105,15 @@ async def run_bundle(bundle_function, bundle_path, bundle_hash, details, job_dat
     await check_or_start_bundle_server(bundle_path, bundle_hash)
 
     # Get a client connection to the bundle server
-    client = UnixStreamXMLRPCClient(get_bundle_socket_path(bundle_path, bundle_hash))
+    client_session = aiohttp.ClientSession(
+        connector=aiohttp.UnixConnector(path=get_bundle_socket_path(bundle_path, bundle_hash))
+    )
+
+    client = aiohttp_xmlrpc.client.ServerProxy('http://anything:8000', client=client_session)
 
     # Make the RPC and return the result
     try:
-        return getattr(client, bundle_function)(details, job_data)
+        return await getattr(client, bundle_function)(details, job_data)
     except Exception as e:
         # An exception occurred, log it
         logging.error(f"Error running bundle function {bundle_function}")
@@ -122,3 +127,6 @@ async def run_bundle(bundle_function, bundle_path, bundle_hash, details, job_dat
         logging.error(''.join('!! ' + line for line in lines))
 
         raise e
+    finally:
+        # Clean up the client
+        await client_session.close()

@@ -4,6 +4,7 @@ import sys
 import time
 from unittest.mock import patch
 
+import aiohttp_xmlrpc.exceptions
 import aiounittest
 import psutil
 
@@ -109,5 +110,5 @@ def working_directory(details, job_data):
         self.assertEqual(result, "module_reloading_works2")
 
     async def test_bundle_exception(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(aiohttp_xmlrpc.exceptions.ApplicationError):
             await run_bundle('not_a_real_function', self.cwd, 'test_bundle', {}, {})
