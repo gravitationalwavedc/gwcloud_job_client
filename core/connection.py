@@ -87,13 +87,14 @@ class JobController:
         # Create the consumer and producer tasks
         consumer_task = asyncio.ensure_future(self.recv_handler())
         producer_task = asyncio.ensure_future(self.send_handler())
+        wait_closed_task = asyncio.ensure_future(self.sock.wait_closed())
 
         # Start the job status thread - this will run a job status check immediately
         asyncio.ensure_future(check_job_status_thread(self))
 
         # Wait for one of the tasks to finish
         done, pending = await asyncio.wait(
-            [consumer_task, producer_task, self.sock.wait_closed],
+            [consumer_task, producer_task, wait_closed_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
 
