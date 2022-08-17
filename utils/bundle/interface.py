@@ -1,14 +1,15 @@
 import asyncio
+import hashlib
 import logging
 import os
 import socket
 import sys
 import tempfile
-import hashlib
 import traceback
 from subprocess import list2cmdline
 
-from utils.bundle.client import UnixStreamXMLRPCClient
+import aiohttp
+import aiohttp_xmlrpc.client
 
 BUNDLE_SOCKET_SUFFIX = ".sock"
 bundle_start_lock = asyncio.Lock()
@@ -40,52 +41,50 @@ async def check_or_start_bundle_server(bundle_path, bundle_hash):
     # and start the RPC server
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock_path = get_bundle_socket_path(bundle_path, bundle_hash)
-    try:
-        # Acquire the start lock so that we don't accidentally spawn many servers if called at the same time
-        await bundle_start_lock.acquire()
 
-        sock.connect(sock_path)
-    except (FileNotFoundError, ConnectionRefusedError):
-        # Remove the socket if it exists
-        if os.path.exists(sock_path):
-            os.remove(sock_path)
+    # Acquire the start lock so that we don't accidentally spawn many servers if called at the same time
+    bundle_start_lock._loop = asyncio.get_event_loop()
+    async with bundle_start_lock:
+        try:
+            sock.connect(sock_path)
+        except (FileNotFoundError, ConnectionRefusedError):
+            # Remove the socket if it exists
+            if os.path.exists(sock_path):
+                os.remove(sock_path)
 
-        # RPC server is not running for this bundle, so start it
-        # Get the path to the server file
-        server_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'server.py')
+            # RPC server is not running for this bundle, so start it
+            # Get the path to the server file
+            server_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'server.py')
 
-        # Activate the virtual environment then run the server passing the path to the socket
-        args = list2cmdline(['.', os.path.join(working_directory, 'venv', 'bin', 'activate'), ";",
-                             'python', server_file, sock_path])
+            # Activate the virtual environment then run the server passing the path to the socket
+            args = list2cmdline(['.', os.path.join(working_directory, 'venv', 'bin', 'activate'), ";",
+                                 'python', server_file, sock_path])
 
-        p = await asyncio.create_subprocess_shell(
-            args,
-            cwd=os.path.join(bundle_path, bundle_hash)
-        )
+            p = await asyncio.create_subprocess_shell(
+                args,
+                cwd=os.path.join(bundle_path, bundle_hash)
+            )
 
-        # Clean up the process - we no longer care about it and this prevents the asyncio loops reporting errors
-        # during test cleanup
-        del p
+            # Clean up the process - we no longer care about it and this prevents the asyncio loops reporting errors
+            # during test cleanup
+            del p
 
-        # Wait for the server to start up, but timeout after 60 seconds (Should be fairly quick)
-        for _ in range(60):
-            await asyncio.sleep(1)
-            try:
-                sock.connect(sock_path)
+            # Wait for the server to start up, but timeout after 60 seconds (Should be fairly quick)
+            for _ in range(60):
+                await asyncio.sleep(1)
+                try:
+                    sock.connect(sock_path)
 
-                # If the socket connected ok, then the remote server is running
-                return
-            except FileNotFoundError:
-                pass
+                    # If the socket connected ok, then the remote server is running
+                    return
+                except FileNotFoundError:
+                    pass
 
-        # The server was unable to start for some reason
-        raise Exception(f"Unable to start the RPC server for bundle with hash {bundle_hash}")
-    finally:
-        # Clean up the socket
-        sock.close()
-
-        # Release the lock
-        bundle_start_lock.release()
+            # The server was unable to start for some reason
+            raise Exception(f"Unable to start the RPC server for bundle with hash {bundle_hash}")
+        finally:
+            # Clean up the socket
+            sock.close()
 
 
 async def run_bundle(bundle_function, bundle_path, bundle_hash, details, job_data):
@@ -104,11 +103,15 @@ async def run_bundle(bundle_function, bundle_path, bundle_hash, details, job_dat
     await check_or_start_bundle_server(bundle_path, bundle_hash)
 
     # Get a client connection to the bundle server
-    client = UnixStreamXMLRPCClient(get_bundle_socket_path(bundle_path, bundle_hash))
+    client_session = aiohttp.ClientSession(
+        connector=aiohttp.UnixConnector(path=get_bundle_socket_path(bundle_path, bundle_hash))
+    )
+
+    client = aiohttp_xmlrpc.client.ServerProxy('http://anything:8000', client=client_session)
 
     # Make the RPC and return the result
     try:
-        return getattr(client, bundle_function)(details, job_data)
+        return await getattr(client, bundle_function)(details, job_data)
     except Exception as e:
         # An exception occurred, log it
         logging.error(f"Error running bundle function {bundle_function}")
@@ -122,3 +125,6 @@ async def run_bundle(bundle_function, bundle_path, bundle_hash, details, job_dat
         logging.error(''.join('!! ' + line for line in lines))
 
         raise e
+    finally:
+        # Clean up the client
+        await client_session.close()

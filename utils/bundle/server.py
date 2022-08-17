@@ -1,34 +1,22 @@
 """
 Adapted from https://gist.github.com/grantjenks/095de18c51fa8f118b68be80a624c45a
 """
+import asyncio
+import concurrent.futures
 import importlib
 import os
-import socketserver
-import stat
 import sys
 from types import ModuleType
 
-from xmlrpc.server import SimpleXMLRPCDispatcher, SimpleXMLRPCRequestHandler
+import aiohttp.web
+import aiohttp_xmlrpc.handler
 
 # Make sure the current working directory is added to the python path so the bundle can be found
 sys.path.append(os.getcwd())
 
-
-class UnixStreamXMLRPCRequestHandler(SimpleXMLRPCRequestHandler):
-    disable_nagle_algorithm = False
-
-    def address_string(self):
-        return self.client_address
-
-
-class UnixStreamXMLRPCServer(socketserver.UnixStreamServer, SimpleXMLRPCDispatcher):
-    def __init__(self, addr, log_requests=True, allow_none=True, encoding=None, bind_and_activate=True,
-                 use_builtin_types=True):
-        self.logRequests = log_requests
-
-        SimpleXMLRPCDispatcher.__init__(self, allow_none, encoding, use_builtin_types)
-        socketserver.UnixStreamServer.__init__(self, addr, UnixStreamXMLRPCRequestHandler, bind_and_activate)
-        os.chmod(addr, stat.S_IRUSR | stat.S_IWUSR)
+executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=100,
+)
 
 
 # Adapted from https://stackoverflow.com/a/58201660
@@ -66,55 +54,71 @@ def rreload(module, mdict=None, base_module=None):
     importlib.reload(module)
 
 
-def working_directory(details, job_data):
-    import bundle
+class XMLRPCServer(aiohttp_xmlrpc.handler.XMLRPCView):
+    async def rpc_working_directory(self, details, job_data):
+        import bundle
 
-    rreload(bundle)
+        rreload(bundle)
 
-    return bundle.working_directory(details, job_data)
+        blocking_tasks = [
+            asyncio.get_event_loop().run_in_executor(executor, bundle.working_directory, details, job_data)
+        ]
 
+        completed, _ = await asyncio.wait(blocking_tasks)
+        return list(completed)[0].result()
 
-def submit(details, job_data):
-    import bundle
+    async def rpc_submit(self, details, job_data):
+        import bundle
 
-    rreload(bundle)
+        rreload(bundle)
 
-    return bundle.submit(details, job_data)
+        blocking_tasks = [
+            asyncio.get_event_loop().run_in_executor(executor, bundle.submit, details, job_data)
+        ]
 
+        completed, _ = await asyncio.wait(blocking_tasks)
+        return list(completed)[0].result()
 
-def status(details, job_data):
-    import bundle
+    async def rpc_status(self, details, job_data):
+        import bundle
 
-    rreload(bundle)
+        rreload(bundle)
 
-    return bundle.status(details, job_data)
+        blocking_tasks = [
+            asyncio.get_event_loop().run_in_executor(executor, bundle.status, details, job_data)
+        ]
 
+        completed, _ = await asyncio.wait(blocking_tasks)
+        return list(completed)[0].result()
 
-def cancel(details, job_data):
-    import bundle
+    async def rpc_cancel(self, details, job_data):
+        import bundle
 
-    rreload(bundle)
+        rreload(bundle)
 
-    return bundle.cancel(details, job_data)
+        blocking_tasks = [
+            asyncio.get_event_loop().run_in_executor(executor, bundle.cancel, details, job_data)
+        ]
 
+        completed, _ = await asyncio.wait(blocking_tasks)
+        return list(completed)[0].result()
 
-def delete(details, job_data):
-    import bundle
+    async def rpc_delete(self, details, job_data):
+        import bundle
 
-    rreload(bundle)
+        rreload(bundle)
 
-    return bundle.delete(details, job_data)
+        blocking_tasks = [
+            asyncio.get_event_loop().run_in_executor(executor, bundle.delete, details, job_data)
+        ]
+
+        completed, _ = await asyncio.wait(blocking_tasks)
+        return list(completed)[0].result()
 
 
 # Create the RPC server
-server = UnixStreamXMLRPCServer(sys.argv[1])
+app = aiohttp.web.Application()
+app.router.add_route('*', '/', XMLRPCServer)
 
-# Register the functions
-server.register_function(working_directory)
-server.register_function(submit)
-server.register_function(status)
-server.register_function(cancel)
-server.register_function(delete)
-
-# Run the server forever
-server.serve_forever()
+# Run the RPC server
+aiohttp.web.run_app(app, path=sys.argv[1])

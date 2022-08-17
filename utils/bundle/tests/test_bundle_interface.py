@@ -1,9 +1,12 @@
+import asyncio
 import json
 import os.path
 import sys
 import time
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
+import aiohttp_xmlrpc.exceptions
 import aiounittest
 import psutil
 
@@ -109,5 +112,32 @@ def working_directory(details, job_data):
         self.assertEqual(result, "module_reloading_works2")
 
     async def test_bundle_exception(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(aiohttp_xmlrpc.exceptions.ApplicationError):
             await run_bundle('not_a_real_function', self.cwd, 'test_bundle', {}, {})
+
+    async def test_bundle_non_blocking(self):
+        # Here we're going to create an updated working directory function that has a 1 second delay in it. We'll
+        # then call the bundle function 100 times and check that the time to complete is less than 10 seconds,
+        # indicating that the calls ran in parallel
+
+        with open(os.path.join(self.cwd, 'test_bundle', 'test_extra.py'), 'w') as f:
+            f.write("""
+def working_directory(details, job_data):
+    import time
+    time.sleep(1)
+    return job_data['index']
+                    """)
+
+        tasks = [run_bundle('working_directory', self.cwd, 'test_bundle', {}, {'index': index}) for index in range(100)]
+
+        now = datetime.now()
+
+        results = await asyncio.gather(*tasks)
+
+        self.assertEqual(len(results), len(tasks))
+
+        for index, task in enumerate(results):
+            self.assertEqual(task, index)
+
+        duration = datetime.now() - now
+        self.assertTrue(duration < timedelta(seconds=10))
