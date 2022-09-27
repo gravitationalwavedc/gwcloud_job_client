@@ -3,7 +3,7 @@ import logging
 
 from core.file_handler import download_file, paused_file_transfers, get_file_list
 from core.messaging.message_ids import SERVER_READY, SUBMIT_JOB, DOWNLOAD_FILE, PAUSE_FILE_CHUNK_STREAM, \
-    RESUME_FILE_CHUNK_STREAM, FILE_LIST
+    RESUME_FILE_CHUNK_STREAM, FILE_LIST, CANCEL_JOB, DELETE_JOB
 from core.submit_job import submit_job
 
 
@@ -33,5 +33,12 @@ async def handle_message(con, msg):
     elif msg.id == FILE_LIST:
         # List all files in a directory
         asyncio.ensure_future(get_file_list(con, msg))
+    elif msg.id == CANCEL_JOB:
+        # Cancel a job
+        asyncio.ensure_future(cancel_job(con, msg))
+    elif msg.id == DELETE_JOB:
+        # Delete a job
+        asyncio.ensure_future(delete_job(con, msg))
+
     else:
         logging.error("Got unknown message ID from the server: " + str(msg.id) + " source: " + msg.source)
