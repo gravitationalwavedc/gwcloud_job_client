@@ -10,6 +10,14 @@ SUBMIT_JOB = 2000
 # string: Any additional information about this status
 UPDATE_JOB = 2001
 
+# Sent by the server to the client to cancel a job
+# uint: The job id to cancel
+CANCEL_JOB  = 2002
+
+# Sent by the server to the client to cancel a job
+# uint: The job id to cancel
+DELETE_JOB = 2003
+
 # Request a missing bundle from the server
 REQUEST_BUNDLE = 3000
 
