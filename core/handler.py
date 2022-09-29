@@ -5,6 +5,8 @@ from core.file_handler import download_file, paused_file_transfers, get_file_lis
 from core.messaging.message_ids import SERVER_READY, SUBMIT_JOB, DOWNLOAD_FILE, PAUSE_FILE_CHUNK_STREAM, \
     RESUME_FILE_CHUNK_STREAM, FILE_LIST, CANCEL_JOB, DELETE_JOB
 from core.submit_job import submit_job
+from core.cancel_job import cancel_job
+from core.delete_job import delete_job
 
 
 async def handle_message(con, msg):
