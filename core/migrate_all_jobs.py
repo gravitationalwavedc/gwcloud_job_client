@@ -5,7 +5,7 @@ import traceback
 from asgiref.sync import sync_to_async
 
 from core.messaging.message import Message
-from core.messaging.message_ids import UPDATE_JOB
+from core.messaging.message_ids import DB_JOB_SAVE
 from db.db.models import Job
 from utils.misc import sync_to_async_iterable
 from utils.packet_scheduler import PacketScheduler
@@ -21,7 +21,7 @@ async def migrate_all_jobs(con):
             db_request_id += 1
             # Create the remote job
             msg = Message(
-                UPDATE_JOB,
+                DB_JOB_SAVE,
                 source="database",
                 priority=PacketScheduler.Priority.Medium,
                 callback=lambda: print(f"Job {job} has been saved.")
