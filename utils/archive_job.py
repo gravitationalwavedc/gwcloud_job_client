@@ -1,6 +1,12 @@
 import asyncio
+import concurrent.futures
 import logging
-from subprocess import list2cmdline
+import subprocess
+
+
+executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=4,
+)
 
 
 async def archive_job(job):
@@ -13,16 +19,28 @@ async def archive_job(job):
         Nothing
     """
 
-    # Attempt to call the function from the bundle after sourcing the venv
-    args = list2cmdline(['tar', '-cvf', 'archive.tar.gz', '.'])
-    p = await asyncio.create_subprocess_shell(
-        args,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        cwd=job.working_directory
-    )
+    def archive_job_impl():
+        # Run the tar command in the jobs working directory to create a top level tar file of the job
+        p = subprocess.Popen(
+            ['tar', '-cvf', 'archive.tar.gz', '.'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=job.working_directory
+        )
 
-    # Wait for the command to finish
-    out, err = await p.communicate()
+        # Wait for the command to finish
+        out, err = p.communicate()
 
-    logging.info(f"Archiving job {job.job_id} completed with code {p.returncode}\n\nStdout: {out}\n\nStderr: {err}\n")
+        return p.returncode, out, err
+
+    # Run the archive function in its own thread to prevent blocking
+    blocking_tasks = [
+        asyncio.get_event_loop().run_in_executor(executor, archive_job_impl)
+    ]
+
+    completed, _ = await asyncio.wait(blocking_tasks)
+
+    returncode, out, err = list(completed)[0].result()
+
+    # Report the output
+    logging.info(f"Archiving job {job.job_id} completed with code {returncode}\n\nStdout: {out}\n\nStderr: {err}\n")

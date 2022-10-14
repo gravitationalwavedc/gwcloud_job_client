@@ -8,6 +8,7 @@ from utils.packet_scheduler import PacketScheduler
 from .check_job_status import check_job_status_thread
 from .handler import handle_message
 from .messaging.message import Message
+from .migrate_all_jobs import migrate_all_jobs
 
 
 class JobController:
@@ -89,8 +90,8 @@ class JobController:
         producer_task = asyncio.ensure_future(self.send_handler())
         wait_closed_task = asyncio.ensure_future(self.sock.wait_closed())
 
-        # Start the job status thread - this will run a job status check immediately
-        asyncio.ensure_future(check_job_status_thread(self))
+        # Start the job migration thread
+        asyncio.ensure_future(migrate_all_jobs(self))
 
         # Wait for one of the tasks to finish
         done, pending = await asyncio.wait(
