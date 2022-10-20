@@ -19,24 +19,27 @@ async def migrate_all_jobs(con):
         db_request_id = 0
         async for job in sync_to_async_iterable(jobs):
             db_request_id += 1
-            # Create the remote job
-            msg = Message(
-                DB_JOB_SAVE,
-                source="database",
-                priority=PacketScheduler.Priority.Medium,
-                callback=lambda: print(f"Job {job} has been saved.")
-            )
-            msg.push_ulong(db_request_id)
-            msg.push_ulong(0)
-            msg.push_ulong(job.job_id)
-            msg.push_ulong(job.scheduler_id)
-            msg.push_bool(job.submitting)
-            msg.push_uint(job.submitting_count)
-            msg.push_string(job.bundle_hash)
-            msg.push_string(job.working_directory)
-            msg.push_bool(job.running)
-            # Send the result
-            await con.scheduler.queue_message(msg)
+            try:
+                # Create the remote job
+                msg = Message(
+                    DB_JOB_SAVE,
+                    source="database",
+                    priority=PacketScheduler.Priority.Medium,
+                    callback=lambda: print(f"Job {job} has been saved.")
+                )
+                msg.push_ulong(db_request_id)
+                msg.push_ulong(0)
+                msg.push_ulong(job.job_id)
+                msg.push_ulong(job.scheduler_id)
+                msg.push_bool(job.submitting)
+                msg.push_uint(job.submitting_count)
+                msg.push_string(job.bundle_hash)
+                msg.push_string(job.working_directory)
+                msg.push_bool(job.running)
+                # Send the result
+                await con.scheduler.queue_message(msg)
+            except Exception as e:
+                logging.info(f"Unable to save job {job} {e}")
 
     except Exception as Exp:
         # An exception occurred, log the exception to the log
